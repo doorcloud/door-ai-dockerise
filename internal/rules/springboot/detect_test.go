@@ -13,8 +13,44 @@ func TestDetect(t *testing.T) {
 	tests := []struct {
 		name     string
 		files    map[string]string
-		expected bool
+		wantFact rules.Facts
+		want     bool
 	}{
+		{
+			name: "Maven project with Spring Boot starter",
+			files: map[string]string{
+				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>demo</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <version>3.2.0</version>
+        </dependency>
+    </dependencies>
+</project>`,
+			},
+			wantFact: rules.Facts{
+				Language:  "java",
+				Framework: "spring-boot",
+				BuildTool: "maven",
+				BuildCmd:  "mvn clean package -DskipTests",
+				BuildDir:  ".",
+				StartCmd:  "java -jar app.jar",
+				Artifact:  "target/*.jar",
+				Ports:     []int{8080},
+				Health:    "/actuator/health",
+				BaseHint:  "eclipse-temurin:17-jdk",
+				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+			},
+			want: true,
+		},
 		{
 			name: "maven_with_spring_boot_starter",
 			files: map[string]string{
@@ -27,7 +63,20 @@ func TestDetect(t *testing.T) {
     </parent>
 </project>`,
 			},
-			expected: true,
+			wantFact: rules.Facts{
+				Language:  "java",
+				Framework: "spring-boot",
+				BuildTool: "maven",
+				BuildCmd:  "mvn clean package -DskipTests",
+				BuildDir:  ".",
+				StartCmd:  "java -jar app.jar",
+				Artifact:  "target/*.jar",
+				Ports:     []int{8080},
+				Health:    "/actuator/health",
+				BaseHint:  "eclipse-temurin:17-jdk",
+				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+			},
+			want: true,
 		},
 		{
 			name: "gradle_with_spring_boot_plugin",
@@ -36,7 +85,20 @@ func TestDetect(t *testing.T) {
     id 'org.springframework.boot' version '2.7.0'
 }`,
 			},
-			expected: true,
+			wantFact: rules.Facts{
+				Language:  "java",
+				Framework: "spring-boot",
+				BuildTool: "gradle",
+				BuildCmd:  "./gradlew build -x test",
+				BuildDir:  ".",
+				StartCmd:  "java -jar app.jar",
+				Artifact:  "build/libs/*.jar",
+				Ports:     []int{8080},
+				Health:    "/actuator/health",
+				BaseHint:  "eclipse-temurin:17-jdk",
+				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+			},
+			want: true,
 		},
 		{
 			name: "kotlin_dsl_with_spring_boot",
@@ -45,7 +107,20 @@ func TestDetect(t *testing.T) {
     id("org.springframework.boot") version "2.7.0"
 }`,
 			},
-			expected: true,
+			wantFact: rules.Facts{
+				Language:  "java",
+				Framework: "spring-boot",
+				BuildTool: "gradle",
+				BuildCmd:  "./gradlew build -x test",
+				BuildDir:  ".",
+				StartCmd:  "java -jar app.jar",
+				Artifact:  "build/libs/*.jar",
+				Ports:     []int{8080},
+				Health:    "/actuator/health",
+				BaseHint:  "eclipse-temurin:17-jdk",
+				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+			},
+			want: true,
 		},
 		{
 			name: "application_class_with_annotation",
@@ -58,7 +133,20 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class DemoApplication {
 }`,
 			},
-			expected: true,
+			wantFact: rules.Facts{
+				Language:  "java",
+				Framework: "spring-boot",
+				BuildTool: "maven",
+				BuildCmd:  "mvn clean package -DskipTests",
+				BuildDir:  ".",
+				StartCmd:  "java -jar app.jar",
+				Artifact:  "target/*.jar",
+				Ports:     []int{8080},
+				Health:    "/actuator/health",
+				BaseHint:  "eclipse-temurin:17-jdk",
+				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+			},
+			want: true,
 		},
 		{
 			name: "multi_module_with_spring_boot",
@@ -80,7 +168,20 @@ public class DemoApplication {
     </dependencies>
 </project>`,
 			},
-			expected: true,
+			wantFact: rules.Facts{
+				Language:  "java",
+				Framework: "spring-boot",
+				BuildTool: "maven",
+				BuildCmd:  "mvn clean package -DskipTests",
+				BuildDir:  ".",
+				StartCmd:  "java -jar app.jar",
+				Artifact:  "target/*.jar",
+				Ports:     []int{8080},
+				Health:    "/actuator/health",
+				BaseHint:  "eclipse-temurin:17-jdk",
+				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+			},
+			want: true,
 		},
 		{
 			name: "not_spring_boot",
@@ -95,7 +196,8 @@ public class DemoApplication {
     </dependencies>
 </project>`,
 			},
-			expected: false,
+			wantFact: rules.Facts{},
+			want:     false,
 		},
 	}
 
@@ -117,8 +219,8 @@ public class DemoApplication {
 
 			// Create rule and test detection
 			rule := NewRule(slog.Default(), nil, &rules.RuleConfig{})
-			if got := rule.Detect(tmpDir); got != tt.expected {
-				t.Errorf("Detect() = %v, want %v", got, tt.expected)
+			if got := rule.Detect(tmpDir); got != tt.want {
+				t.Errorf("Detect() = %v, want %v", got, tt.want)
 			}
 		})
 	}
