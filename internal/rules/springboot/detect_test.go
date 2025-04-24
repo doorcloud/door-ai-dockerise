@@ -9,6 +9,41 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 )
 
+// setupTestDir creates a temporary directory with the given files and mvnw script
+func setupTestDir(t *testing.T, files map[string]string) string {
+	tmpDir := t.TempDir()
+
+	// Create mvnw script
+	mvnwPath := filepath.Join(tmpDir, "mvnw")
+	mvnwContent := `#!/bin/sh
+# Minimal Maven wrapper for testing
+if [ "$1" = "clean" ] && [ "$2" = "package" ] && [ "$3" = "-DskipTests" ]; then
+    mkdir -p target
+    touch target/app.jar
+    echo "Maven build successful"
+    exit 0
+else
+    echo "Unsupported Maven command"
+    exit 1
+fi`
+	if err := os.WriteFile(mvnwPath, []byte(mvnwContent), 0755); err != nil {
+		t.Fatalf("Failed to create mvnw: %v", err)
+	}
+
+	// Create test files
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file: %v", err)
+		}
+	}
+
+	return tmpDir
+}
+
 func TestDetect(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -37,17 +72,18 @@ func TestDetect(t *testing.T) {
 </project>`,
 			},
 			wantFact: rules.Facts{
-				Language:  "java",
-				Framework: "spring-boot",
-				BuildTool: "maven",
-				BuildCmd:  "mvn clean package -DskipTests",
-				BuildDir:  ".",
-				StartCmd:  "java -jar app.jar",
-				Artifact:  "target/*.jar",
-				Ports:     []int{8080},
-				Health:    "/actuator/health",
-				BaseHint:  "eclipse-temurin:17-jdk",
-				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+				Language:     "java",
+				Framework:    "spring-boot",
+				BuildTool:    "maven",
+				BuildCmd:     "mvn clean package -DskipTests",
+				BuildDir:     ".",
+				StartCmd:     "java -jar app.jar",
+				Artifact:     "target/*.jar",
+				Ports:        []int{8080},
+				Health:       "/actuator/health",
+				BaseHint:     "eclipse-temurin:17-jdk",
+				MavenVersion: "3.9.6",
+				Env:          map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
 			},
 			want: true,
 		},
@@ -64,17 +100,18 @@ func TestDetect(t *testing.T) {
 </project>`,
 			},
 			wantFact: rules.Facts{
-				Language:  "java",
-				Framework: "spring-boot",
-				BuildTool: "maven",
-				BuildCmd:  "mvn clean package -DskipTests",
-				BuildDir:  ".",
-				StartCmd:  "java -jar app.jar",
-				Artifact:  "target/*.jar",
-				Ports:     []int{8080},
-				Health:    "/actuator/health",
-				BaseHint:  "eclipse-temurin:17-jdk",
-				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+				Language:     "java",
+				Framework:    "spring-boot",
+				BuildTool:    "maven",
+				BuildCmd:     "mvn clean package -DskipTests",
+				BuildDir:     ".",
+				StartCmd:     "java -jar app.jar",
+				Artifact:     "target/*.jar",
+				Ports:        []int{8080},
+				Health:       "/actuator/health",
+				BaseHint:     "eclipse-temurin:17-jdk",
+				MavenVersion: "3.9.6",
+				Env:          map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
 			},
 			want: true,
 		},
@@ -86,17 +123,18 @@ func TestDetect(t *testing.T) {
 }`,
 			},
 			wantFact: rules.Facts{
-				Language:  "java",
-				Framework: "spring-boot",
-				BuildTool: "gradle",
-				BuildCmd:  "./gradlew build -x test",
-				BuildDir:  ".",
-				StartCmd:  "java -jar app.jar",
-				Artifact:  "build/libs/*.jar",
-				Ports:     []int{8080},
-				Health:    "/actuator/health",
-				BaseHint:  "eclipse-temurin:17-jdk",
-				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+				Language:     "java",
+				Framework:    "spring-boot",
+				BuildTool:    "gradle",
+				BuildCmd:     "./gradlew build -x test",
+				BuildDir:     ".",
+				StartCmd:     "java -jar app.jar",
+				Artifact:     "build/libs/*.jar",
+				Ports:        []int{8080},
+				Health:       "/actuator/health",
+				BaseHint:     "eclipse-temurin:17-jdk",
+				MavenVersion: "3.9.6",
+				Env:          map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
 			},
 			want: true,
 		},
@@ -108,17 +146,18 @@ func TestDetect(t *testing.T) {
 }`,
 			},
 			wantFact: rules.Facts{
-				Language:  "java",
-				Framework: "spring-boot",
-				BuildTool: "gradle",
-				BuildCmd:  "./gradlew build -x test",
-				BuildDir:  ".",
-				StartCmd:  "java -jar app.jar",
-				Artifact:  "build/libs/*.jar",
-				Ports:     []int{8080},
-				Health:    "/actuator/health",
-				BaseHint:  "eclipse-temurin:17-jdk",
-				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+				Language:     "java",
+				Framework:    "spring-boot",
+				BuildTool:    "gradle",
+				BuildCmd:     "./gradlew build -x test",
+				BuildDir:     ".",
+				StartCmd:     "java -jar app.jar",
+				Artifact:     "build/libs/*.jar",
+				Ports:        []int{8080},
+				Health:       "/actuator/health",
+				BaseHint:     "eclipse-temurin:17-jdk",
+				MavenVersion: "3.9.6",
+				Env:          map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
 			},
 			want: true,
 		},
@@ -134,17 +173,18 @@ public class DemoApplication {
 }`,
 			},
 			wantFact: rules.Facts{
-				Language:  "java",
-				Framework: "spring-boot",
-				BuildTool: "maven",
-				BuildCmd:  "mvn clean package -DskipTests",
-				BuildDir:  ".",
-				StartCmd:  "java -jar app.jar",
-				Artifact:  "target/*.jar",
-				Ports:     []int{8080},
-				Health:    "/actuator/health",
-				BaseHint:  "eclipse-temurin:17-jdk",
-				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+				Language:     "java",
+				Framework:    "spring-boot",
+				BuildTool:    "maven",
+				BuildCmd:     "mvn clean package -DskipTests",
+				BuildDir:     ".",
+				StartCmd:     "java -jar app.jar",
+				Artifact:     "target/*.jar",
+				Ports:        []int{8080},
+				Health:       "/actuator/health",
+				BaseHint:     "eclipse-temurin:17-jdk",
+				MavenVersion: "3.9.6",
+				Env:          map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
 			},
 			want: true,
 		},
@@ -169,17 +209,18 @@ public class DemoApplication {
 </project>`,
 			},
 			wantFact: rules.Facts{
-				Language:  "java",
-				Framework: "spring-boot",
-				BuildTool: "maven",
-				BuildCmd:  "mvn clean package -DskipTests",
-				BuildDir:  ".",
-				StartCmd:  "java -jar app.jar",
-				Artifact:  "target/*.jar",
-				Ports:     []int{8080},
-				Health:    "/actuator/health",
-				BaseHint:  "eclipse-temurin:17-jdk",
-				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+				Language:     "java",
+				Framework:    "spring-boot",
+				BuildTool:    "maven",
+				BuildCmd:     "mvn clean package -DskipTests",
+				BuildDir:     ".",
+				StartCmd:     "java -jar app.jar",
+				Artifact:     "target/*.jar",
+				Ports:        []int{8080},
+				Health:       "/actuator/health",
+				BaseHint:     "eclipse-temurin:17-jdk",
+				MavenVersion: "3.9.6",
+				Env:          map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
 			},
 			want: true,
 		},
@@ -203,21 +244,7 @@ public class DemoApplication {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create temporary directory
-			tmpDir := t.TempDir()
-
-			// Create test files
-			for path, content := range tt.files {
-				fullPath := filepath.Join(tmpDir, path)
-				if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
-					t.Fatalf("Failed to create directory: %v", err)
-				}
-				if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
-					t.Fatalf("Failed to write file: %v", err)
-				}
-			}
-
-			// Create rule and test detection
+			tmpDir := setupTestDir(t, tt.files)
 			rule := NewRule(slog.Default(), nil, &rules.RuleConfig{})
 			if got := rule.Detect(tmpDir); got != tt.want {
 				t.Errorf("Detect() = %v, want %v", got, tt.want)
