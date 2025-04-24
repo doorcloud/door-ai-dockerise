@@ -2,6 +2,7 @@ package stack
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"regexp"
@@ -114,4 +115,75 @@ func (r *SpringBootRule) Language() string {
 // Framework returns the framework name
 func (r *SpringBootRule) Framework() string {
 	return "spring-boot"
+}
+
+// BaseImageHint returns a suggested base image
+func (r *SpringBootRule) BaseImageHint() string {
+	return "eclipse-temurin:17-jdk"
+}
+
+// ExposedPorts returns the ports that should be exposed
+func (r *SpringBootRule) ExposedPorts() []int {
+	return []int{8080}
+}
+
+// FactsPrompt builds the prompt for fact extraction
+func (r *SpringBootRule) FactsPrompt(snippets []string) string {
+	return fmt.Sprintf(`You are a code analysis expert. Given a set of code snippets, extract key facts about the project.
+The output must be valid JSON with the following structure:
+{
+  "language": "java",
+  "framework": "spring-boot",
+  "build_tool": "build system (maven, gradle, etc)",
+  "build_cmd": "command to build",
+  "build_dir": "directory containing build files (e.g., '.', 'backend/')",
+  "start_cmd": "command to start the application",
+  "artifact": "path to built artifact",
+  "ports": [8080],
+  "env": {"key": "value"},
+  "health": "/actuator/health"
+}
+
+Code snippets:
+%s`, snippets)
+}
+
+// DockerfilePrompt builds the prompt for Dockerfile generation
+func (r *SpringBootRule) DockerfilePrompt(facts Facts, currentDF string, lastErr string) string {
+	prompt := fmt.Sprintf(`You are a Docker expert. Create a production-ready Dockerfile for a %s application using %s.
+Facts about the application:
+- Language: %s
+- Framework: %s
+- Build tool: %s
+- Build command: %s
+- Start command: %s
+- Ports: %v
+- Health check: %s
+- Base image: %s
+
+Requirements:
+- Use multi-stage build
+- Optimize for production
+- Include health check
+- Set appropriate labels
+- Use non-root user
+- Handle environment variables
+- Include proper error handling
+
+The Dockerfile should be valid and buildable.`, facts.Language, facts.Framework, facts.Language, facts.Framework,
+		facts.BuildTool, facts.BuildCmd, facts.StartCmd, facts.Ports, facts.Health, facts.BaseImage)
+
+	if currentDF != "" {
+		prompt += fmt.Sprintf(`
+
+Previous Dockerfile that failed:
+%s
+
+Error:
+%s
+
+Please fix the issues while maintaining the working parts.`, currentDF, lastErr)
+	}
+
+	return prompt
 }

@@ -15,6 +15,14 @@ type Rule interface {
 	Language() string
 	// Framework returns the framework name if any
 	Framework() string
+	// BaseImageHint returns a suggested base image
+	BaseImageHint() string
+	// ExposedPorts returns the ports that should be exposed
+	ExposedPorts() []int
+	// FactsPrompt builds the prompt for fact extraction
+	FactsPrompt(snippets []string) string
+	// DockerfilePrompt builds the prompt for Dockerfile generation
+	DockerfilePrompt(facts Facts, currentDF string, lastErr string) string
 }
 
 // Registry is a collection of rules
@@ -38,7 +46,7 @@ func (r Registry) Match(ctx context.Context, fsys fs.FS) (Rule, error) {
 type Facts struct {
 	Language  string            // "java", "node", "python"…
 	Framework string            // "spring-boot", "express", "flask"…
-	Builder   string            // "maven", "npm", "pip", …
+	BuildTool string            // "maven", "npm", "pip", …
 	BuildCmd  string            // e.g. "mvn package", "npm run build"
 	BuildDir  string            // directory containing build files (e.g. ".", "backend/")
 	StartCmd  string            // e.g. "java -jar app.jar", "node server.js"
