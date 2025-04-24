@@ -1,0 +1,10 @@
+#!/bin/sh
+# Minimal Maven wrapper for testing
+if [ "$1" = "-B" ] && [ "$2" = "-ntp" ] && [ "$3" = "package" ] && [ "$4" = "-DskipTests" ]; then
+    mkdir -p target
+    echo "Maven build successful"
+    exit 0
+else
+    echo "Unsupported Maven command"
+    exit 1
+fi 

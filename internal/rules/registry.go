@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/doorcloud/door-ai-dockerise/pkg/rule"
 )
 
 // StackRule represents a technology stack rule.
@@ -90,4 +91,23 @@ func fallbackRule(repo string) *StackRule {
 			"build_dir": buildDir,
 		},
 	}
+}
+
+// RegisterRule adds a new rule to the registry
+func RegisterRule(name string, r rule.Rule) {
+	rule.RegisterDefault(name, r)
+}
+
+// DetectRule tries to find a matching rule for the given repository
+func DetectRule(repo string) (rule.Rule, Facts, error) {
+	// Try each registered rule in order
+	for _, name := range rule.ListDefault() {
+		if r, ok := rule.GetDefault(name); ok {
+			if r.Detect(repo) {
+				// TODO: Extract facts from the rule
+				return r, Facts{}, nil
+			}
+		}
+	}
+	return nil, Facts{}, ErrNoRule
 }

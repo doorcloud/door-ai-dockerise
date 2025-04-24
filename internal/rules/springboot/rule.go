@@ -6,11 +6,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/doorcloud/door-ai-dockerise/internal/facts"
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 	"github.com/doorcloud/door-ai-dockerise/internal/snippet"
+	"github.com/doorcloud/door-ai-dockerise/pkg/rule"
 )
 
 // Rule implements the Rule interface for Spring Boot projects.
@@ -121,4 +124,67 @@ func (r *Rule) findFiles(root, pattern string) ([]string, error) {
 		return nil, err
 	}
 	return matches, nil
+}
+
+type SpringBootRule struct {
+	rule.BaseRule
+}
+
+func init() {
+	rule.RegisterDefault("springboot", &SpringBootRule{
+		BaseRule: rule.NewBaseRule(slog.Default()),
+	})
+}
+
+func (r *SpringBootRule) Detect(path string) bool {
+	// Check for pom.xml or build.gradle
+	matches, err := doublestar.Glob(os.DirFS(path), "**/{pom.xml,build.gradle}")
+	if err != nil {
+		return false
+	}
+	if len(matches) == 0 {
+		return false
+	}
+
+	// Check for Spring Boot dependencies
+	buildFile := filepath.Join(path, matches[0])
+	content, err := os.ReadFile(buildFile)
+	if err != nil {
+		return false
+	}
+
+	// Simple check for Spring Boot dependencies
+	return strings.Contains(string(content), "spring-boot")
+}
+
+func (r *SpringBootRule) Snippets(path string) ([]snippet.T, error) {
+	// TODO: Implement snippet extraction
+	return nil, nil
+}
+
+func (r *SpringBootRule) Facts(ctx context.Context, snips []snippet.T, c *llm.Client) (facts.Facts, error) {
+	return facts.Facts{
+		Language:  "java",
+		Framework: "spring-boot",
+		BuildTool: "maven",
+		BuildCmd:  "mvn clean package -DskipTests",
+		Artifact:  "target/*.jar",
+		Ports:     []int{8080},
+		Health:    "/actuator/health",
+		BaseHint:  "eclipse-temurin:17-jdk",
+	}, nil
+}
+
+func (r *SpringBootRule) Dockerfile(ctx context.Context, f facts.Facts, c *llm.Client) (string, error) {
+	return `FROM eclipse-temurin:17-jdk AS builder
+WORKDIR /app
+COPY pom.xml .
+COPY src ./src
+RUN mvn clean package -DskipTests
+
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY --from=builder /app/target/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]`, nil
 }
