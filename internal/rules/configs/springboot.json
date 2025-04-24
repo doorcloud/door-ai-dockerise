@@ -1,0 +1,32 @@
+{
+  "name": "springboot",
+  "language": "java",
+  "framework": "spring-boot",
+  "signatures": [
+    "**/pom.xml",
+    "**/build.gradle",
+    "**/application*.{yml,yaml,properties}",
+    "**/*Application.java"
+  ],
+  "manifest_globs": [
+    "**/pom.xml",
+    "**/build.gradle",
+    "**/application*.{yml,yaml,properties}"
+  ],
+  "code_globs": [
+    "**/*Application.java",
+    "**/src/main/java/**/*.java"
+  ],
+  "main_regex": "@SpringBootApplication|SpringApplication.run",
+  "build_hints": {
+    "builder": "maven:3.9-eclipse-temurin-21",
+    "build_cmd": "mvn clean package -DskipTests",
+    "artifact": "target/*.jar"
+  },
+  "port_configs": [
+    {
+      "file_pattern": "**/application*.{yml,yaml,properties}",
+      "key_pattern": "server.port"
+    }
+  ]
+} 

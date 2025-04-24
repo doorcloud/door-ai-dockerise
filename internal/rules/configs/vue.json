@@ -1,0 +1,37 @@
+{
+  "name": "vue",
+  "language": "javascript",
+  "framework": "vue",
+  "signatures": [
+    "**/package.json",
+    "**/vite.config.js",
+    "**/vue.config.js",
+    "**/src/main.js",
+    "**/*.vue"
+  ],
+  "manifest_globs": [
+    "**/package.json",
+    "**/vite.config.js",
+    "**/vue.config.js"
+  ],
+  "code_globs": [
+    "**/src/main.js",
+    "**/src/App.vue"
+  ],
+  "main_regex": "createApp|Vue.createApp",
+  "build_hints": {
+    "builder": "node:20",
+    "build_cmd": "npm install && npm run build",
+    "artifact": "dist"
+  },
+  "port_configs": [
+    {
+      "file_pattern": "**/vite.config.js",
+      "key_pattern": "port"
+    },
+    {
+      "file_pattern": "**/vue.config.js",
+      "key_pattern": "devServer.port"
+    }
+  ]
+} 
