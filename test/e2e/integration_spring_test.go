@@ -13,25 +13,31 @@ import (
 	"time"
 
 	"github.com/docker/docker/client"
+	"github.com/doorcloud/door-ai-dockerise/internal/config"
 	"github.com/doorcloud/door-ai-dockerise/internal/facts"
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 	"github.com/doorcloud/door-ai-dockerise/pkg/dockerverify"
 )
 
 func TestE2E_SpringBootRepos(t *testing.T) {
-	if os.Getenv("DG_E2E") == "" {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	if !cfg.E2E {
 		t.Skip("Skipping E2E test. Set DG_E2E=1 to run.")
 	}
 
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		t.Fatal("OPENAI_API_KEY environment variable is required")
+	if cfg.OpenAIKey == "" {
+		t.Skip("OPENAI_API_KEY not set")
 	}
 
 	t.Log("Starting Spring Boot integration test...")
 
 	// Create LLM client
-	llmClient, err := llm.NewClient(apiKey)
+	llmClient, err := llm.NewClient(&cfg)
 	if err != nil {
 		t.Fatalf("Failed to create LLM client: %v", err)
 	}
@@ -92,7 +98,7 @@ func TestE2E_SpringBootRepos(t *testing.T) {
 			ctx := context.Background()
 			t.Log("Starting Dockerfile verification...")
 			startTime = time.Now()
-			dockerfile, err := dockerverify.VerifyDockerfile(ctx, dockerClient, tempDir, tc.expected, llmClient, 4)
+			dockerfile, err := dockerverify.VerifyDockerfile(ctx, dockerClient, tempDir, tc.expected, llmClient, 4, &cfg)
 			if err != nil {
 				t.Fatalf("Failed to verify Dockerfile: %v", err)
 			}

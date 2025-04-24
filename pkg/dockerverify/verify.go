@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/doorcloud/door-ai-dockerise/internal/config"
 	"github.com/doorcloud/door-ai-dockerise/internal/facts"
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 )
@@ -74,17 +75,18 @@ func cleanDockerfile(content string) string {
 // createDockerignore creates a .dockerignore file in the build context directory
 func createDockerignore(dir string) error {
 	ignoreContent := `.git
-**/target
 **/*.iml
 .idea
 docs
 *.md
+!mvnw
+!.mvn/**
 `
 	return os.WriteFile(filepath.Join(dir, ".dockerignore"), []byte(ignoreContent), 0644)
 }
 
 // VerifyDockerfile attempts to build and run a Dockerfile, with retries on failure.
-func VerifyDockerfile(ctx context.Context, cli DockerClient, repo string, f facts.Facts, llmClient llm.Interface, maxAttempts int) (string, error) {
+func VerifyDockerfile(ctx context.Context, cli DockerClient, repo string, f facts.Facts, llmClient llm.Interface, maxAttempts int, cfg *config.Config) (string, error) {
 	var dockerfile string
 	var err error
 	var lastDigest string
@@ -93,21 +95,16 @@ func VerifyDockerfile(ctx context.Context, cli DockerClient, repo string, f fact
 	log.Printf("Starting Dockerfile verification process for repository: %s", repo)
 	log.Printf("Maximum attempts: %d", maxAttempts)
 
-	// Get build timeout from environment or use default
-	buildTimeout := 15 * time.Minute
-	if v := os.Getenv("DG_BUILD_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			buildTimeout = d
-		}
-	}
+	// Use build timeout from config
+	buildTimeout := cfg.BuildTimeout
 	log.Printf("Build timeout set to: %v", buildTimeout)
 
 	// Convert facts to map for LLM
 	factsMap := f.ToMap()
 	log.Printf("Facts map created: %+v", factsMap)
 
-	// Get Maven cache directory
-	m2Cache := os.Getenv("HOME") + "/.m2"
+	// Get Maven cache directory from config
+	m2Cache := cfg.GetM2Cache()
 	if _, err := os.Stat(m2Cache); err != nil {
 		log.Printf("Warning: Maven cache directory not found at %s", m2Cache)
 		m2Cache = ""
