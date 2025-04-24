@@ -1,0 +1,17 @@
+kind: stackRule/v1
+id: spring-boot
+detect:
+  globs:
+    - "**/pom.xml"
+    - "**/build.gradle*"
+  containsRegex: "@SpringBootApplication"
+hints:
+  language: java
+  framework: spring-boot
+  build:
+    tool: maven
+    cmd: "./mvnw -q package -DskipTests"
+    dir: .
+  ports: [8080]
+  health: "/actuator/health"
+  baseImage: "eclipse-temurin:17-jdk" 

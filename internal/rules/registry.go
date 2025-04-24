@@ -9,16 +9,6 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/pkg/rule"
 )
 
-// StackRule represents a technology stack rule.
-type StackRule struct {
-	Name          string            // e.g. "springboot", "nodejs"
-	Signatures    []string          // glob patterns that prove the stack
-	ManifestGlobs []string          // files we must feed to the LLM
-	CodeGlobs     []string          // optional – biggest 2 go to LLM if needed
-	MainRegex     string            // marker that identifies the main class/file
-	BuildHints    map[string]string // e.g. {"builder":"maven:3.9-eclipse-temurin-21"}
-}
-
 // DetectFunc is the signature for stack detection functions.
 type DetectFunc func(repo string) (*StackRule, error)
 
@@ -99,15 +89,23 @@ func RegisterRule(name string, r rule.Rule) {
 }
 
 // DetectRule tries to find a matching rule for the given repository
-func DetectRule(repo string) (rule.Rule, Facts, error) {
+func DetectRule(repo string) (*StackRule, Facts, error) {
 	// Try each registered rule in order
-	for _, name := range rule.ListDefault() {
-		if r, ok := rule.GetDefault(name); ok {
-			if r.Detect(repo) {
-				// TODO: Extract facts from the rule
-				return r, Facts{}, nil
-			}
-		}
+	rule, err := FindStackRule(repo)
+	if err != nil {
+		return nil, Facts{}, err
 	}
-	return nil, Facts{}, ErrNoRule
+	if rule == nil {
+		return nil, Facts{}, ErrNoRule
+	}
+
+	// Extract facts from the rule
+	facts := Facts{
+		Language:  rule.BuildHints["language"],
+		Framework: rule.Name,
+		BuildTool: rule.BuildHints["builder"],
+		BuildDir:  rule.BuildHints["build_dir"],
+	}
+
+	return rule, facts, nil
 }
