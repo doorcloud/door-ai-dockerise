@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/sashabaranov/go-openai"
@@ -20,25 +21,94 @@ type Interface interface {
 
 // Client wraps the OpenAI client with our specific needs.
 type Client struct {
+	// client is the OpenAI client instance
 	client *openai.Client
+	// logger is used for application logging
 	logger *slog.Logger
+	// model is the OpenAI model to use (e.g., "gpt-4")
+	model string
+	// temperature controls the randomness of the model's output (0.0 to 2.0)
+	temperature float32
 }
 
-// NewClient creates a new LLM client.
+// NewClient creates a new LLM client with configuration from environment variables.
+// It validates and sets up the client with appropriate defaults.
 func NewClient(apiKey string) (*Client, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("OPENAI_API_KEY is required")
 	}
 
+	// Get model from env or use default
+	model := os.Getenv("OPENAI_MODEL")
+	if model == "" {
+		model = "gpt-4"
+	}
+	// Validate model name
+	if !isValidModel(model) {
+		return nil, fmt.Errorf("invalid model: %s", model)
+	}
+
+	// Get temperature from env or use default
+	temperature := float32(0.7)
+	if tempStr := os.Getenv("OPENAI_TEMPERATURE"); tempStr != "" {
+		temp, err := strconv.ParseFloat(tempStr, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid temperature value: %w", err)
+		}
+		if temp < 0.0 || temp > 2.0 {
+			return nil, fmt.Errorf("temperature must be between 0.0 and 2.0, got: %f", temp)
+		}
+		temperature = float32(temp)
+	}
+
+	// Get log level from env or use default
+	logLevel := slog.LevelDebug
+	if levelStr := os.Getenv("OPENAI_LOG_LEVEL"); levelStr != "" {
+		level, err := parseLogLevel(levelStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid log level: %w", err)
+		}
+		logLevel = level
+	}
+
 	client := openai.NewClient(apiKey)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+		Level: logLevel,
 	}))
 
 	return &Client{
-		client: client,
-		logger: logger,
+		client:      client,
+		logger:      logger,
+		model:       model,
+		temperature: temperature,
 	}, nil
+}
+
+// isValidModel checks if the model name is valid
+func isValidModel(model string) bool {
+	validModels := map[string]bool{
+		"gpt-4":         true,
+		"gpt-4-turbo":   true,
+		"gpt-3.5-turbo": true,
+		"gpt-4.1-mini":  true,
+	}
+	return validModels[model]
+}
+
+// parseLogLevel converts a string log level to slog.Level
+func parseLogLevel(levelStr string) (slog.Level, error) {
+	switch strings.ToLower(levelStr) {
+	case "debug":
+		return slog.LevelDebug, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "warn":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return slog.LevelDebug, fmt.Errorf("unknown log level: %s", levelStr)
+	}
 }
 
 // GenerateFacts prompts the LLM to extract facts from snippets.
@@ -52,13 +122,14 @@ func (c *Client) GenerateFacts(ctx context.Context, snippets []string) (map[stri
 	resp, err := c.client.CreateChatCompletion(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model: openai.GPT4,
+			Model: c.model,
 			Messages: []openai.ChatCompletionMessage{
 				{
 					Role:    openai.ChatMessageRoleSystem,
 					Content: prompt,
 				},
 			},
+			Temperature: c.temperature,
 		},
 	)
 	if err != nil {
@@ -87,14 +158,14 @@ func (c *Client) GenerateDockerfile(ctx context.Context, facts map[string]interf
 
 	// Call OpenAI API
 	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-4",
+		Model: c.model,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    "system",
 				Content: prompt,
 			},
 		},
-		Temperature: 0.7,
+		Temperature: c.temperature,
 	})
 	if err != nil {
 		return "", fmt.Errorf("LLM completion failed: %w", err)
@@ -122,14 +193,14 @@ func (c *Client) FixDockerfile(ctx context.Context, facts map[string]interface{}
 
 	// Call OpenAI API
 	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-4",
+		Model: c.model,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    "system",
 				Content: prompt,
 			},
 		},
-		Temperature: 0.7,
+		Temperature: c.temperature,
 	})
 	if err != nil {
 		return "", fmt.Errorf("LLM completion failed: %w", err)
