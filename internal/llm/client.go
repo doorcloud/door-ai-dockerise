@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 
+	"github.com/doorcloud/door-ai-dockerise/internal/config"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -29,49 +29,41 @@ type Client struct {
 	model string
 	// temperature controls the randomness of the model's output (0.0 to 2.0)
 	temperature float32
+	// config holds the application configuration
+	config *config.Config
 }
 
 // NewClient creates a new LLM client with configuration from environment variables.
 // It validates and sets up the client with appropriate defaults.
-func NewClient(apiKey string) (*Client, error) {
-	if apiKey == "" {
+func NewClient(cfg *config.Config) (*Client, error) {
+	if cfg.OpenAIKey == "" {
 		return nil, fmt.Errorf("OPENAI_API_KEY is required")
 	}
 
-	// Get model from env or use default
-	model := os.Getenv("OPENAI_MODEL")
-	if model == "" {
-		model = "gpt-4"
-	}
 	// Validate model name
-	if !isValidModel(model) {
-		return nil, fmt.Errorf("invalid model: %s", model)
+	if !isValidModel(cfg.OpenAIModel) {
+		return nil, fmt.Errorf("invalid model: %s", cfg.OpenAIModel)
 	}
 
-	// Get temperature from env or use default
-	temperature := float32(0.7)
-	if tempStr := os.Getenv("OPENAI_TEMPERATURE"); tempStr != "" {
-		temp, err := strconv.ParseFloat(tempStr, 32)
-		if err != nil {
-			return nil, fmt.Errorf("invalid temperature value: %w", err)
-		}
-		if temp < 0.0 || temp > 2.0 {
-			return nil, fmt.Errorf("temperature must be between 0.0 and 2.0, got: %f", temp)
-		}
-		temperature = float32(temp)
+	// Validate temperature
+	if cfg.OpenAITemp < 0.0 || cfg.OpenAITemp > 2.0 {
+		return nil, fmt.Errorf("temperature must be between 0.0 and 2.0, got: %f", cfg.OpenAITemp)
 	}
 
-	// Get log level from env or use default
+	// Get log level from config
 	logLevel := slog.LevelDebug
-	if levelStr := os.Getenv("OPENAI_LOG_LEVEL"); levelStr != "" {
-		level, err := parseLogLevel(levelStr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid log level: %w", err)
-		}
-		logLevel = level
+	switch strings.ToLower(cfg.OpenAILogLevel) {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "info":
+		logLevel = slog.LevelInfo
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
 	}
 
-	client := openai.NewClient(apiKey)
+	client := openai.NewClient(cfg.OpenAIKey)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: logLevel,
 	}))
@@ -79,8 +71,9 @@ func NewClient(apiKey string) (*Client, error) {
 	return &Client{
 		client:      client,
 		logger:      logger,
-		model:       model,
-		temperature: temperature,
+		model:       cfg.OpenAIModel,
+		temperature: float32(cfg.OpenAITemp),
+		config:      cfg,
 	}, nil
 }
 
@@ -95,27 +88,11 @@ func isValidModel(model string) bool {
 	return validModels[model]
 }
 
-// parseLogLevel converts a string log level to slog.Level
-func parseLogLevel(levelStr string) (slog.Level, error) {
-	switch strings.ToLower(levelStr) {
-	case "debug":
-		return slog.LevelDebug, nil
-	case "info":
-		return slog.LevelInfo, nil
-	case "warn":
-		return slog.LevelWarn, nil
-	case "error":
-		return slog.LevelError, nil
-	default:
-		return slog.LevelDebug, fmt.Errorf("unknown log level: %s", levelStr)
-	}
-}
-
 // GenerateFacts prompts the LLM to extract facts from snippets.
 func (c *Client) GenerateFacts(ctx context.Context, snippets []string) (map[string]interface{}, error) {
 	prompt := buildFactsPrompt(snippets)
 
-	if os.Getenv("DG_DEBUG") == "1" {
+	if c.config.Debug {
 		c.logger.Debug("facts prompt", "content", prompt)
 	}
 
@@ -136,7 +113,7 @@ func (c *Client) GenerateFacts(ctx context.Context, snippets []string) (map[stri
 		return nil, fmt.Errorf("LLM completion failed: %w", err)
 	}
 
-	if os.Getenv("DG_DEBUG") == "1" {
+	if c.config.Debug {
 		c.logger.Debug("facts response", "content", resp.Choices[0].Message.Content)
 	}
 
@@ -150,9 +127,9 @@ func (c *Client) GenerateFacts(ctx context.Context, snippets []string) (map[stri
 
 // GenerateDockerfile creates a new Dockerfile based on the extracted facts.
 func (c *Client) GenerateDockerfile(ctx context.Context, facts map[string]interface{}) (string, error) {
-	prompt := buildDockerfilePrompt(facts)
+	prompt := buildDockerfilePrompt(facts, c.config)
 
-	if os.Getenv("DG_DEBUG") == "1" {
+	if c.config.Debug {
 		c.logger.Debug("dockerfile prompt", "content", prompt)
 	}
 
@@ -176,7 +153,7 @@ func (c *Client) GenerateDockerfile(ctx context.Context, facts map[string]interf
 	}
 
 	dockerfile := resp.Choices[0].Message.Content
-	if os.Getenv("DG_DEBUG") == "1" {
+	if c.config.Debug {
 		c.logger.Debug("generated dockerfile", "content", dockerfile)
 	}
 
@@ -187,7 +164,7 @@ func (c *Client) GenerateDockerfile(ctx context.Context, facts map[string]interf
 func (c *Client) FixDockerfile(ctx context.Context, facts map[string]interface{}, dockerfile string, buildDir string, errorLog string, errorType string, attempt int) (string, error) {
 	prompt := buildFixPrompt(facts, dockerfile, errorLog, errorType, attempt)
 
-	if os.Getenv("DG_DEBUG") == "1" {
+	if c.config.Debug {
 		c.logger.Debug("fix prompt", "content", prompt)
 	}
 
@@ -206,7 +183,7 @@ func (c *Client) FixDockerfile(ctx context.Context, facts map[string]interface{}
 		return "", fmt.Errorf("LLM completion failed: %w", err)
 	}
 
-	if os.Getenv("DG_DEBUG") == "1" {
+	if c.config.Debug {
 		c.logger.Debug("fix response", "content", resp.Choices[0].Message.Content)
 	}
 
@@ -232,91 +209,63 @@ The output must be valid JSON with the following structure:
   "version": "framework version if known",
   "build_tool": "build system (maven, gradle, etc)",
   "build_cmd": "command to build",
+  "build_dir": "directory containing build files (e.g., '.', 'backend/')",
+  "start_cmd": "command to start the application",
   "artifact": "path to built artifact",
   "ports": [list of ports],
-  "env": ["list of env vars"],
+  "env": {"key": "value"},
   "health": "health check endpoint if any",
-  "dependencies": ["list of key deps"]
+  "dependencies": ["list of key deps"],
+  "base_hint": "base image hint"
 }
 
 SNIPPETS:
 %s`, strings.Join(snippets, "\n\n"))
 }
 
-func buildDockerfilePrompt(facts map[string]interface{}) string {
-	buildDir := facts["build_dir"].(string)
+func buildDockerfilePrompt(facts map[string]interface{}, cfg *config.Config) string {
+	// Use Maven version from config
+	mvnVersion := cfg.MvnVersion
 
-	// Get Maven version from env or use default
-	mvnVersion := os.Getenv("DG_MVN_VERSION")
-	if mvnVersion == "" {
-		mvnVersion = "3.9.6"
-	}
-
-	var copyCmd string
-	if buildDir != "." {
-		copyCmd = fmt.Sprintf(`COPY %s/pom.xml .
-COPY %s/.mvn .mvn
-COPY %s/src src`, buildDir, buildDir, buildDir)
-	} else {
-		copyCmd = "COPY . ."
-	}
-
-	return fmt.Sprintf(`You are a Docker expert. Generate a Dockerfile for a Spring Boot application.
-IMPORTANT: Reply ONLY with the raw Dockerfile content - no markdown, no explanations, no commentary.
-
-Facts about the application:
+	return fmt.Sprintf(`SYSTEM
+You are a Docker expert. Create a production-ready Dockerfile for a Spring Boot application.
+Use the following facts:
 %s
 
-Use this template, replacing maven-%s with the correct version:
-FROM eclipse-temurin:17-jdk AS build
+Requirements:
+- Use multi-stage build
+- Use Maven %s
+- Optimize for production
+- Include health check
+- Set appropriate labels
+- Use non-root user
+- Handle environment variables
+- Include proper error handling
 
-WORKDIR /workspace
-
-%s
-
-# Use BuildKit cache for Maven dependencies
-RUN --mount=type=cache,target=/root/.mvn \
-    if [ -f "./mvnw" ]; then \
-      chmod +x ./mvnw && \
-      ./mvnw -q package -DskipTests; \
-    else \
-      curl -sL https://archive.apache.org/dist/maven/maven-3/%s/binaries/apache-maven-%s-bin.tar.gz | tar xz -C /tmp && \
-      chmod +x /tmp/apache-maven-%s/bin/mvn && \
-      ln -s /tmp/apache-maven-%s/bin/mvn /usr/bin/mvn && \
-      mvn -q package -DskipTests; \
-    fi
-
-FROM eclipse-temurin:17-jre
-WORKDIR /app
-COPY --from=build /workspace/target/*.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]`, formatFacts(facts), mvnVersion, copyCmd, mvnVersion, mvnVersion, mvnVersion, mvnVersion)
+The output should be a valid Dockerfile.`, formatFacts(facts), mvnVersion)
 }
 
 func buildFixPrompt(facts map[string]interface{}, prevDockerfile string, errorLog string, errorType string, attempt int) string {
-	// Get Maven version from env or use default
-	mvnVersion := os.Getenv("DG_MVN_VERSION")
-	if mvnVersion == "" {
-		mvnVersion = "3.9.6"
-	}
-
-	return fmt.Sprintf(`You are a Docker expert. Fix the Dockerfile that failed to build.
-IMPORTANT: Reply ONLY with the raw Dockerfile content - no markdown, no explanations, no commentary.
+	return fmt.Sprintf(`SYSTEM
+You are a Docker expert. Fix the following Dockerfile that failed to build.
 
 Error type: %s
+Attempt: %d
 Error log:
 %s
 
 Previous Dockerfile:
 %s
 
-Facts about the application:
+Project facts:
 %s
 
-The build failed on attempt %d. Fix the Dockerfile while:
-1. Using BuildKit cache for Maven dependencies
-2. Skipping tests during the build
-3. Using multi-stage build to minimize image size
-4. Keeping the same base image unless absolutely necessary
-5. Using Maven version %s in the fallback path`, errorType, errorLog, prevDockerfile, formatFacts(facts), attempt, mvnVersion)
+Requirements:
+- Fix the specific error
+- Maintain all working parts
+- Explain the fix in a comment
+- Keep the multi-stage build
+- Preserve security best practices
+
+The output should be a valid Dockerfile.`, errorType, attempt, errorLog, prevDockerfile, formatFacts(facts))
 }

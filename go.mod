@@ -7,6 +7,8 @@ toolchain go1.24.1
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/docker/docker v25.0.3+incompatible
+	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/opencontainers/image-spec v1.1.1
 	github.com/sashabaranov/go-openai v1.17.9
 )
 
@@ -23,7 +25,6 @@ require (
 	github.com/moby/term v0.5.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect

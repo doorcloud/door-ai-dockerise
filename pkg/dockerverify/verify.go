@@ -91,6 +91,7 @@ func VerifyDockerfile(ctx context.Context, cli DockerClient, repo string, f fact
 	var err error
 	var lastDigest string
 	var imageID string
+	var buildCache string // Cache directory for builds
 
 	log.Printf("Starting Dockerfile verification process for repository: %s", repo)
 	log.Printf("Maximum attempts: %d", maxAttempts)
@@ -108,6 +109,14 @@ func VerifyDockerfile(ctx context.Context, cli DockerClient, repo string, f fact
 	if _, err := os.Stat(m2Cache); err != nil {
 		log.Printf("Warning: Maven cache directory not found at %s", m2Cache)
 		m2Cache = ""
+	}
+
+	// Create a persistent build cache directory
+	buildCache, err = os.MkdirTemp("", "dockergen-cache-*")
+	if err != nil {
+		log.Printf("Warning: Failed to create build cache directory: %v", err)
+	} else {
+		defer os.RemoveAll(buildCache)
 	}
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -199,73 +208,75 @@ func VerifyDockerfile(ctx context.Context, cli DockerClient, repo string, f fact
 			return "", fmt.Errorf("create .dockerignore: %w", err)
 		}
 
-		// Copy build context
-		log.Printf("Copying build context from %s to %s", repo, tmpDir)
+		// Copy repository contents to build directory
 		if err := copyDir(repo, tmpDir); err != nil {
-			log.Printf("Failed to copy build context: %v", err)
-			return "", fmt.Errorf("copy build context: %w", err)
-		}
-		log.Printf("Build context copied successfully")
-
-		// Fix mvnw permissions if it exists
-		mvnwPath := filepath.Join(tmpDir, "mvnw")
-		if _, err := os.Stat(mvnwPath); err == nil {
-			log.Printf("Found mvnw script, fixing permissions")
-			if err := os.Chmod(mvnwPath, 0755); err != nil {
-				log.Printf("Failed to fix mvnw permissions: %v", err)
-				return "", fmt.Errorf("fix mvnw permissions: %w", err)
-			}
-			log.Printf("Fixed mvnw permissions to 0755")
+			log.Printf("Failed to copy repository: %v", err)
+			return "", fmt.Errorf("copy repository: %w", err)
 		}
 
-		// Compute Dockerfile digest
-		currentDigest := dockerfileDigest([]byte(dockerfile))
-		imageTag := fmt.Sprintf("dockergen-e2e:%s", currentDigest)
-
-		// Only build if this is the first attempt or if the Dockerfile has changed
-		if attempt == 1 || currentDigest != lastDigest {
-			// Build with timeout
-			buildCtx, cancel := context.WithTimeout(ctx, buildTimeout)
-			defer cancel()
-			log.Printf("Starting Docker build with %v timeout", buildTimeout)
-
-			// Prepare build args for Maven cache
-			buildArgs := []string{"build", "-t", imageTag}
-			if m2Cache != "" {
-				buildArgs = append(buildArgs, "--build-arg", "BUILDKIT_INLINE_CACHE=1")
-				buildArgs = append(buildArgs, "--secret", "id=m2,target=/root/.m2")
-			}
-			buildArgs = append(buildArgs, ".")
-
-			cmd := exec.CommandContext(buildCtx, "docker", buildArgs...)
-			cmd.Dir = tmpDir
-			cmd.Env = append(os.Environ(),
-				"DOCKER_BUILDKIT=1",
-				"BUILDKIT_PROGRESS=plain",
-			)
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				if ctx.Err() != nil {
-					log.Printf("Context cancelled during build: %v", ctx.Err())
-					return "", fmt.Errorf("context cancelled during build: %w", ctx.Err())
-				}
-				log.Printf("Build failed: %v\nOutput:\n%s", err, string(output))
-				err = fmt.Errorf("build failed: %w\n%s", err, string(output))
-				continue
-			}
-
-			// Extract image ID from BuildKit output
-			lines := strings.Split(string(output), "\n")
-			for i := len(lines) - 1; i >= 0; i-- {
-				if strings.HasPrefix(lines[i], "sha256:") {
-					imageID = strings.TrimSpace(lines[i])
-					break
-				}
-			}
-			log.Printf("Docker build completed successfully, image ID: %s", imageID)
-		} else {
-			log.Printf("Skipping build, using existing image: %s", imageID)
+		// Calculate Dockerfile digest
+		digest := dockerfileDigest([]byte(dockerfile))
+		if digest == lastDigest {
+			log.Printf("Dockerfile unchanged from last attempt, skipping build")
+			continue
 		}
+		lastDigest = digest
+
+		// Build options with cache from previous attempts
+		buildOpts := types.ImageBuildOptions{
+			Dockerfile: "Dockerfile",
+			Tags:       []string{fmt.Sprintf("dockergen-%s", digest)},
+			Remove:     true,
+			PullParent: true,
+		}
+
+		// Add build cache if available
+		if buildCache != "" {
+			buildOpts.CacheFrom = []string{fmt.Sprintf("dockergen-%s", lastDigest)}
+			buildOpts.BuildArgs = map[string]*string{
+				"BUILDKIT_INLINE_CACHE": ptr("1"),
+			}
+		}
+
+		// Build the image
+		buildCtx, cancel := context.WithTimeout(ctx, buildTimeout)
+		defer cancel()
+		log.Printf("Starting Docker build with %v timeout", buildTimeout)
+
+		// Prepare build args for Maven cache
+		buildArgs := []string{"build", "-t", fmt.Sprintf("dockergen-%s", digest)}
+		if m2Cache != "" {
+			buildArgs = append(buildArgs, "--build-arg", "BUILDKIT_INLINE_CACHE=1")
+			buildArgs = append(buildArgs, "--secret", "id=m2,target=/root/.m2")
+		}
+		buildArgs = append(buildArgs, ".")
+
+		cmd := exec.CommandContext(buildCtx, "docker", buildArgs...)
+		cmd.Dir = tmpDir
+		cmd.Env = append(os.Environ(),
+			"DOCKER_BUILDKIT=1",
+			"BUILDKIT_PROGRESS=plain",
+		)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			if ctx.Err() != nil {
+				log.Printf("Context cancelled during build: %v", ctx.Err())
+				return "", fmt.Errorf("context cancelled during build: %w", ctx.Err())
+			}
+			log.Printf("Build failed: %v\nOutput:\n%s", err, string(output))
+			err = fmt.Errorf("build failed: %w\n%s", err, string(output))
+			continue
+		}
+
+		// Extract image ID from BuildKit output
+		lines := strings.Split(string(output), "\n")
+		for i := len(lines) - 1; i >= 0; i-- {
+			if strings.HasPrefix(lines[i], "sha256:") {
+				imageID = strings.TrimSpace(lines[i])
+				break
+			}
+		}
+		log.Printf("Docker build completed successfully, image ID: %s", imageID)
 
 		// Run with timeout
 		runCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -273,9 +284,9 @@ func VerifyDockerfile(ctx context.Context, cli DockerClient, repo string, f fact
 		log.Printf("Starting Docker run with 2-minute timeout")
 
 		// Run container in detached mode
-		containerName := fmt.Sprintf("dockergen-verify-%s", currentDigest)
-		cmd := exec.CommandContext(runCtx, "docker", "run", "-d", "--rm", "--name", containerName, imageTag)
-		output, err := cmd.CombinedOutput()
+		containerName := fmt.Sprintf("dockergen-verify-%s", digest)
+		cmd = exec.CommandContext(runCtx, "docker", "run", "-d", "--rm", "--name", containerName, fmt.Sprintf("dockergen-%s", digest))
+		output, err = cmd.CombinedOutput()
 		if err != nil {
 			if ctx.Err() != nil {
 				log.Printf("Context cancelled during run: %v", ctx.Err())
@@ -344,7 +355,6 @@ func VerifyDockerfile(ctx context.Context, cli DockerClient, repo string, f fact
 			log.Printf("Failed to stop container: %v", err)
 		}
 
-		lastDigest = currentDigest
 		return dockerfile, nil
 	}
 
@@ -401,4 +411,8 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(dstFile, srcFile)
 	return err
+}
+
+func ptr(s string) *string {
+	return &s
 }

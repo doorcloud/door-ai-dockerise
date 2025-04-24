@@ -39,6 +39,9 @@ type Facts struct {
 	// BuildDir is the directory containing the build manifest (e.g., pom.xml, package.json).
 	BuildDir string `json:"build_dir,omitempty"`
 
+	// StartCmd is the command to start the application.
+	StartCmd string `json:"start_cmd,omitempty"`
+
 	// Artifact is the path to the built artifact.
 	Artifact string `json:"artifact,omitempty"`
 
@@ -73,6 +76,12 @@ func (f Facts) Validate() error {
 	}
 	if f.BuildCmd == "" {
 		missing = append(missing, "build_cmd")
+	}
+	if f.BuildDir == "" {
+		missing = append(missing, "build_dir")
+	}
+	if f.StartCmd == "" {
+		missing = append(missing, "start_cmd")
 	}
 	if f.Artifact == "" {
 		missing = append(missing, "artifact")

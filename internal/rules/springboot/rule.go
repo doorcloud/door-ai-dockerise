@@ -38,11 +38,12 @@ func NewRule(logger *slog.Logger, llmClient *llm.Client, config *rules.RuleConfi
 
 // Detect determines if the given path contains a Spring Boot project.
 func (r *Rule) Detect(path string) bool {
-	files, err := r.findFiles(path, "pom.xml")
+	stackRule, err := Detect(path)
 	if err != nil {
+		r.logger.Error("Failed to detect Spring Boot", "error", err)
 		return false
 	}
-	return len(files) > 0
+	return stackRule != nil
 }
 
 // Snippets returns relevant code snippets from the Spring Boot project.

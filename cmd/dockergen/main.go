@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/docker/docker/client"
+	"github.com/doorcloud/door-ai-dockerise/internal/config"
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 	"github.com/doorcloud/door-ai-dockerise/internal/rules/springboot"
@@ -18,6 +19,13 @@ import (
 )
 
 func main() {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Parse command line arguments
 	repoPath := flag.String("repo", "", "Path to repository")
 	flag.Parse()
@@ -33,7 +41,7 @@ func main() {
 	}))
 
 	// Create LLM client
-	llmClient, err := llm.NewClient(os.Getenv("OPENAI_API_KEY"))
+	llmClient, err := llm.NewClient(&cfg)
 	if err != nil {
 		logger.Error("Failed to create LLM client", "error", err)
 		os.Exit(1)
@@ -94,11 +102,11 @@ func main() {
 	// Verify and retry loop
 	var lastErrorType string
 	for attempt := 1; attempt <= 4; attempt++ {
-		if os.Getenv("DG_DEBUG") == "1" {
+		if cfg.Debug {
 			logger.Info("Verifying Dockerfile", "attempt", attempt)
 		}
 
-		_, err := dockerverify.VerifyDockerfile(ctx, dockerClient, *repoPath, projectFacts, llmClient, attempt)
+		_, err := dockerverify.VerifyDockerfile(ctx, dockerClient, *repoPath, projectFacts, llmClient, attempt, &cfg)
 		if err == nil {
 			logger.Info("Dockerfile verification successful", "attempt", attempt)
 			break
@@ -133,7 +141,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		if os.Getenv("DG_DEBUG") == "1" {
+		if cfg.Debug {
 			logger.Info("Attempting to fix Dockerfile", "attempt", attempt)
 		}
 

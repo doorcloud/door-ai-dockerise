@@ -14,29 +14,35 @@ func (f Facts) ValidateBasic() error {
 	if f.BuildCmd == "" {
 		return errors.New("missing build_cmd")
 	}
+	if f.BuildDir == "" {
+		return errors.New("missing build_dir")
+	}
+	if f.StartCmd == "" {
+		return errors.New("missing start_cmd")
+	}
 
 	// Check build tool specific requirements
 	if strings.Contains(f.BuildCmd, "mvn") {
-		if !strings.Contains(f.BuildCmd, "-f") && !fileExists("pom.xml") {
-			return errors.New("build cmd uses Maven but no pom.xml at root")
+		if !strings.Contains(f.BuildCmd, "-f") && !fileExists(filepath.Join(f.BuildDir, "pom.xml")) {
+			return errors.New("build cmd uses Maven but no pom.xml found in build directory")
 		}
 	}
 
 	if strings.Contains(f.BuildCmd, "npm") || strings.Contains(f.BuildCmd, "yarn") {
-		if !fileExists("package.json") {
-			return errors.New("build cmd uses npm/yarn but no package.json at root")
+		if !fileExists(filepath.Join(f.BuildDir, "package.json")) {
+			return errors.New("build cmd uses npm/yarn but no package.json found in build directory")
 		}
 	}
 
 	if strings.Contains(f.BuildCmd, "pip") || strings.Contains(f.BuildCmd, "poetry") {
-		if !fileExists("requirements.txt") && !fileExists("pyproject.toml") {
-			return errors.New("build cmd uses pip/poetry but no requirements.txt or pyproject.toml at root")
+		if !fileExists(filepath.Join(f.BuildDir, "requirements.txt")) && !fileExists(filepath.Join(f.BuildDir, "pyproject.toml")) {
+			return errors.New("build cmd uses pip/poetry but no requirements.txt or pyproject.toml found in build directory")
 		}
 	}
 
 	if strings.Contains(f.BuildCmd, "go build") {
-		if !fileExists("go.mod") {
-			return errors.New("build cmd uses Go but no go.mod at root")
+		if !fileExists(filepath.Join(f.BuildDir, "go.mod")) {
+			return errors.New("build cmd uses Go but no go.mod found in build directory")
 		}
 	}
 

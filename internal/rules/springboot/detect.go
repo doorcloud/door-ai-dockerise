@@ -6,81 +6,86 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 )
 
 // Detect returns a Spring Boot rule if the repository contains Spring Boot files.
 func Detect(repo string) (*rules.StackRule, error) {
-	// Load rule configs
+	// Try to load rule configs
+	var config *rules.RuleConfig
 	configs, err := rules.LoadRuleConfigs("internal/rules/configs")
-	if err != nil {
-		return nil, fmt.Errorf("load rule configs: %w", err)
-	}
-
-	config, ok := configs["springboot"]
-	if !ok {
-		return nil, fmt.Errorf("springboot config not found")
-	}
-
-	// Check for build files
-	buildFiles := []string{
-		"pom.xml",
-		"build.gradle*",
-		"settings.gradle*",
-		"mvnw",
-		"gradlew",
-	}
-	foundBuildFile := false
-	for _, file := range buildFiles {
-		if _, err := os.Stat(file); err == nil {
-			foundBuildFile = true
-			break
+	if err == nil {
+		if c, ok := configs["springboot"]; ok {
+			config = c
 		}
 	}
-	if !foundBuildFile {
-		return nil, nil
+
+	// Use default config if loading failed
+	if config == nil {
+		config = &rules.RuleConfig{
+			Name: "springboot",
+			Signatures: []string{
+				"**/pom.xml",
+				"**/build.gradle",
+				"**/application*.{yml,yaml,properties}",
+				"**/*Application.java",
+			},
+		}
 	}
 
-	// Look inside build files for spring-boot plugin/starter
-	springBootPattern := regexp.MustCompile(`(?i)spring-boot[-.]`)
-	matches, err := filepath.Glob("**/pom.xml")
+	// Check for Maven Spring Boot
+	mavenFiles, err := doublestar.Glob(os.DirFS(repo), "**/pom.xml")
 	if err != nil {
 		return nil, fmt.Errorf("glob pom.xml: %w", err)
 	}
-	matches2, err := filepath.Glob("**/build.gradle*")
-	if err != nil {
-		return nil, fmt.Errorf("glob build.gradle: %w", err)
-	}
-	matches = append(matches, matches2...)
-
-	for _, match := range matches {
-		content, err := os.ReadFile(match)
+	for _, file := range mavenFiles {
+		content, err := os.ReadFile(filepath.Join(repo, file))
 		if err != nil {
 			continue
 		}
-		if springBootPattern.Match(content) {
+		// Check for Spring Boot parent or dependency
+		if regexp.MustCompile(`<parent>\s*<groupId>org\.springframework\.boot</groupId>`).Match(content) ||
+			regexp.MustCompile(`<artifactId>spring-boot-[^<]+</artifactId>`).Match(content) ||
+			regexp.MustCompile(`<groupId>org\.springframework\.boot</groupId>`).Match(content) {
+			return createStackRule(config), nil
+		}
+	}
+
+	// Check for Gradle Spring Boot
+	gradleFiles, err := doublestar.Glob(os.DirFS(repo), "**/build.gradle*")
+	if err != nil {
+		return nil, fmt.Errorf("glob build.gradle: %w", err)
+	}
+	for _, file := range gradleFiles {
+		content, err := os.ReadFile(filepath.Join(repo, file))
+		if err != nil {
+			continue
+		}
+		// Check for Spring Boot plugin in both Groovy and Kotlin DSL
+		if regexp.MustCompile(`id\s*['"](org\.springframework\.boot)['"]`).Match(content) ||
+			regexp.MustCompile(`id\s*\(\s*["'](org\.springframework\.boot)["']\s*\)`).Match(content) {
 			return createStackRule(config), nil
 		}
 	}
 
 	// Look for Application class with @SpringBootApplication
-	appPattern := regexp.MustCompile(`@SpringBootApplication`)
-	matches, err = filepath.Glob("src/main/java/**/*Application.java")
+	javaFiles, err := doublestar.Glob(os.DirFS(repo), "src/main/java/**/*Application.java")
 	if err != nil {
 		return nil, fmt.Errorf("glob Application.java: %w", err)
 	}
-	matches2, err = filepath.Glob("src/main/kotlin/**/*Application.kt")
+	kotlinFiles, err := doublestar.Glob(os.DirFS(repo), "src/main/kotlin/**/*Application.kt")
 	if err != nil {
 		return nil, fmt.Errorf("glob Application.kt: %w", err)
 	}
-	matches = append(matches, matches2...)
+	appFiles := append(javaFiles, kotlinFiles...)
 
-	for _, match := range matches {
-		content, err := os.ReadFile(match)
+	for _, file := range appFiles {
+		content, err := os.ReadFile(filepath.Join(repo, file))
 		if err != nil {
 			continue
 		}
-		if appPattern.Match(content) {
+		if regexp.MustCompile(`@SpringBootApplication`).Match(content) {
 			return createStackRule(config), nil
 		}
 	}
