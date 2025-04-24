@@ -1,37 +1,24 @@
 package config
 
 import (
-	"os"
 	"time"
-
-	"github.com/kelseyhightower/envconfig"
 )
 
-// Config holds all configuration settings for the application
+// Config represents the application configuration
 type Config struct {
-	// OpenAI settings
-	OpenAIKey      string  `envconfig:"OPENAI_API_KEY"`
-	OpenAIModel    string  `envconfig:"OPENAI_MODEL" default:"gpt-4"`
-	OpenAITemp     float64 `envconfig:"OPENAI_TEMPERATURE" default:"0.7"`
-	OpenAILogLevel string  `envconfig:"OPENAI_LOG_LEVEL" default:"info"`
-
-	// Application settings
-	Debug        bool          `envconfig:"DG_DEBUG" default:"false"`
-	E2E          bool          `envconfig:"DG_E2E" default:"false"`
-	BuildTimeout time.Duration `envconfig:"DG_BUILD_TIMEOUT" default:"15m"`
-	MvnVersion   string        `envconfig:"DG_MVN_VERSION" default:"3.9.6"`
+	// BuildTimeout is the maximum time to wait for a Docker build
+	BuildTimeout time.Duration
+	// Debug enables debug logging
+	Debug bool
+	// MvnVersion is the Maven version to use
+	MvnVersion string
 }
 
-// Load loads the configuration from environment variables
-func Load() (Config, error) {
-	var cfg Config
-	if err := envconfig.Process("", &cfg); err != nil {
-		return Config{}, err
+// New creates a new configuration with default values
+func New() *Config {
+	return &Config{
+		BuildTimeout: 15 * time.Minute,
+		Debug:        false,
+		MvnVersion:   "3.8.4",
 	}
-	return cfg, nil
-}
-
-// GetM2Cache returns the Maven cache directory path
-func (c *Config) GetM2Cache() string {
-	return os.Getenv("HOME") + "/.m2"
 }
