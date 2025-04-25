@@ -14,13 +14,26 @@ func (d Detector) Name() string {
 }
 
 func (d Detector) Detect(dir string) bool {
-	pkg := filepath.Join(dir, "package.json")
-	b, err := os.ReadFile(pkg)
+	// 1. direct hit
+	if hasReactPkg(dir) {
+		return true
+	}
+	// 2. look one level below (covers tests like examples/react)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false
 	}
-	// very small and safe: just look for "react" in dependencies or devDependencies
-	return bytes.Contains(b, []byte(`"react"`))
+	for _, e := range entries {
+		if e.IsDir() && hasReactPkg(filepath.Join(dir, e.Name())) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasReactPkg(p string) bool {
+	b, err := os.ReadFile(filepath.Join(p, "package.json"))
+	return err == nil && bytes.Contains(b, []byte(`"react"`))
 }
 
 func (d Detector) Facts(dir string) map[string]any {
