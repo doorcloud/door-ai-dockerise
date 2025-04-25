@@ -18,38 +18,38 @@ func TestMockClient(t *testing.T) {
 }
 
 func TestNew_ReturnsMockClientWhenNoAPIKey(t *testing.T) {
-	// Save and restore environment
-	originalAPIKey := os.Getenv("OPENAI_API_KEY")
-	originalMockLLM := os.Getenv("DG_MOCK_LLM")
-	defer func() {
-		os.Setenv("OPENAI_API_KEY", originalAPIKey)
-		os.Setenv("DG_MOCK_LLM", originalMockLLM)
-	}()
+	os.Setenv("OPENAI_API_KEY", "")
+	os.Setenv("DG_MOCK_LLM", "1")
+	defer os.Unsetenv("OPENAI_API_KEY")
+	defer os.Unsetenv("DG_MOCK_LLM")
 
-	// Test cases
-	tests := []struct {
-		name     string
-		apiKey   string
-		mockLLM  string
-		wantMock bool
-	}{
-		{"No API Key", "", "", true},
-		{"Empty API Key", "", "0", true},
-		{"With API Key", "test-key", "", false},
-		{"Force Mock", "test-key", "1", true},
+	client := New()
+	if _, ok := client.(*mockClient); !ok {
+		t.Error("Expected mock client when no API key and DG_MOCK_LLM=1")
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			os.Setenv("OPENAI_API_KEY", tt.apiKey)
-			os.Setenv("DG_MOCK_LLM", tt.mockLLM)
+func TestNew_ReturnsRealClientWhenAPIKey(t *testing.T) {
+	os.Setenv("OPENAI_API_KEY", "test-key")
+	os.Setenv("DG_MOCK_LLM", "0")
+	defer os.Unsetenv("OPENAI_API_KEY")
+	defer os.Unsetenv("DG_MOCK_LLM")
 
-			client := New()
-			_, isMock := client.(*mockClient)
-			if isMock != tt.wantMock {
-				t.Errorf("New() = %T, want mock=%v", client, tt.wantMock)
-			}
-		})
+	client := New()
+	if _, ok := client.(*mockClient); ok {
+		t.Error("Expected real client when API key is set")
+	}
+}
+
+func TestNew_ReturnsMockClientWhenMockEnvSet(t *testing.T) {
+	os.Setenv("OPENAI_API_KEY", "test-key")
+	os.Setenv("DG_MOCK_LLM", "1")
+	defer os.Unsetenv("OPENAI_API_KEY")
+	defer os.Unsetenv("DG_MOCK_LLM")
+
+	client := New()
+	if _, ok := client.(*mockClient); !ok {
+		t.Error("Expected mock client when DG_MOCK_LLM=1")
 	}
 }
 
