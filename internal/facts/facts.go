@@ -53,7 +53,7 @@ func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.Rule, client l
 	}
 
 	// Get facts from LLM
-	response, err := client.Chat("facts", prompt)
+	response, err := client.Chat(prompt, "facts")
 	if err != nil {
 		return Facts{}, fmt.Errorf("chat: %w", err)
 	}

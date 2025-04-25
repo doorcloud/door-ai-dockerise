@@ -1,0 +1,9 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"language\":\"java\",\"framework\":\"spring-boot\",\"build_tool\":\"maven\",\"build_cmd\":\"./mvnw -q package -DskipTests\",\"build_dir\":\".\",\"start_cmd\":\"java -jar target/*.jar\",\"artifact\":\"target/*.jar\",\"ports\":[8080],\"health\":\"/actuator/health\",\"env\":{},\"base_image\":\"openjdk:11-jdk\"}"
+      }
+    }
+  ]
+} 

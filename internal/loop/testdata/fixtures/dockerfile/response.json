@@ -1,0 +1,9 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "FROM openjdk:11-jdk\nWORKDIR /app\nCOPY mvnw .\nCOPY .mvn .mvn\nCOPY pom.xml .\nRUN chmod +x ./mvnw && ./mvnw -q package -DskipTests\nEXPOSE 8080\nHEALTHCHECK --interval=30s --timeout=3s \\\n  CMD curl -f http://localhost:8080/actuator/health || exit 1\nCMD [\"java\", \"-jar\", \"target/*.jar\"]"
+      }
+    }
+  ]
+} 

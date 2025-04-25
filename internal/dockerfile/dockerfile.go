@@ -14,8 +14,8 @@ func Generate(ctx context.Context, facts types.Facts, client llm.Client) (string
 	// Build the prompt for Dockerfile generation
 	prompt := buildDockerfilePrompt(facts, "", "")
 
-	// Call LLM to generate Dockerfile
-	resp, err := client.Chat("dockerfile", prompt)
+	// Get Dockerfile from LLM
+	resp, err := client.Chat(prompt, "dockerfile")
 	if err != nil {
 		return "", fmt.Errorf("llm call failed: %w", err)
 	}

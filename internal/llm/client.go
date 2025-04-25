@@ -2,7 +2,6 @@ package llm
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/types"
@@ -24,43 +23,58 @@ type Facts struct {
 	BuildDir  string
 }
 
-// Client defines the interface for LLM interactions
+// Client is the interface for interacting with LLM APIs
 type Client interface {
-	Chat(model, prompt string) (string, error)
+	Chat(prompt string, model string) (string, error)
 }
 
-// New returns a mock or real LLM client based on environment variables
-func New() Client {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	mockLLM := os.Getenv("DG_MOCK_LLM") == "1"
-
-	if apiKey == "" || mockLLM {
-		return &mockClient{}
-	}
-	return &OpenAIClient{
-		client: openai.NewClient(apiKey),
-	}
-}
-
-// OpenAIClient implements the Client interface using OpenAI's API
+// OpenAIClient is a client for the OpenAI API
 type OpenAIClient struct {
 	client *openai.Client
 }
 
-func (c *OpenAIClient) Chat(model, prompt string) (string, error) {
-	resp, err := c.client.CreateChatCompletion(context.Background(), openai.ChatCompletionRequest{
-		Model: openai.GPT4,
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: prompt,
+// Chat implements the Client interface for OpenAIClient
+func (c *OpenAIClient) Chat(prompt string, model string) (string, error) {
+	if model == "" {
+		model = os.Getenv("DG_LLM_MODEL")
+		if model == "" {
+			model = openai.GPT4
+		}
+	}
+
+	resp, err := c.client.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model: model,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: prompt,
+				},
 			},
 		},
-	})
+	)
 	if err != nil {
-		return "", fmt.Errorf("openai call failed: %w", err)
+		return "", err
 	}
+
 	return resp.Choices[0].Message.Content, nil
+}
+
+// New creates a new LLM client
+func New() Client {
+	if os.Getenv("DG_MOCK_LLM") == "1" {
+		return &MockClient{}
+	}
+
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		return &MockClient{}
+	}
+
+	return &OpenAIClient{
+		client: openai.NewClient(apiKey),
+	}
 }
 
 // AnalyzeFacts analyzes facts about a technology stack
