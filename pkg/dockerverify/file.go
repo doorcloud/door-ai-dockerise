@@ -1,7 +1,6 @@
 package dockerverify
 
 import (
-	"os"
 	"strings"
 )
 
@@ -28,10 +27,10 @@ func defaultShouldCopy(p string) bool {
 // shouldCopy returns true if the file should be copied to the build context
 func shouldCopy(p string) bool {
 	// Always copy Maven wrapper files
-	if strings.HasSuffix(p, "mvnw") || strings.HasSuffix(p, "mvnw.cmd") {
+	if p == "mvnw" || p == "mvnw.cmd" {
 		return true
 	}
-	if strings.Contains(p, string(os.PathSeparator)+".mvn"+string(os.PathSeparator)) {
+	if strings.HasPrefix(p, ".mvn/wrapper/") {
 		return true
 	}
 
