@@ -8,6 +8,7 @@ import (
 
 func init() {
 	Register(&react.Detector{})
+	Register(&react.FactsDetector{})
 	Register(&springboot.Rule{})
 	Register(&node.Detector{})
 }
