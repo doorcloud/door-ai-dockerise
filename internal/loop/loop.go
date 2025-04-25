@@ -9,6 +9,7 @@ import (
 	"github.com/aliou/dockerfile-gen/internal/dockerfile"
 	"github.com/aliou/dockerfile-gen/internal/facts"
 	"github.com/aliou/dockerfile-gen/internal/llm"
+	"github.com/aliou/dockerfile-gen/internal/types"
 	"github.com/aliou/dockerfile-gen/internal/verify"
 )
 
@@ -21,16 +22,31 @@ func Run(ctx context.Context, fsys fs.FS, client llm.Client) (string, error) {
 	}
 
 	// Infer facts about the project
-	facts, err := facts.InferWithClient(ctx, fsys, rule, client)
+	projectFacts, err := facts.InferWithClient(ctx, fsys, rule, client)
 	if err != nil {
 		return "", fmt.Errorf("infer facts: %w", err)
+	}
+
+	// Convert facts to types.Facts
+	typedFacts := types.Facts{
+		Language:  projectFacts.Language,
+		Framework: projectFacts.Framework,
+		BuildTool: projectFacts.BuildTool,
+		BuildCmd:  projectFacts.BuildCmd,
+		BuildDir:  projectFacts.BuildDir,
+		StartCmd:  projectFacts.StartCmd,
+		Artifact:  projectFacts.Artifact,
+		Ports:     projectFacts.Ports,
+		Health:    projectFacts.Health,
+		Env:       projectFacts.Env,
+		BaseImage: projectFacts.BaseImage,
 	}
 
 	// Try generating and verifying up to 3 times
 	var lastError error
 	for i := 0; i < 3; i++ {
 		// Generate Dockerfile
-		df, err := dockerfile.Generate(ctx, facts, client)
+		df, err := dockerfile.Generate(ctx, typedFacts, client)
 		if err != nil {
 			return "", fmt.Errorf("generate dockerfile: %w", err)
 		}

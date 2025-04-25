@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aliou/dockerfile-gen/internal/facts"
 	"github.com/aliou/dockerfile-gen/internal/llm"
+	"github.com/aliou/dockerfile-gen/internal/types"
 )
 
 func TestGenerate(t *testing.T) {
 	// Create test facts
-	testFacts := facts.Facts{
+	testFacts := types.Facts{
 		Language:  "java",
 		Framework: "spring-boot",
 		BuildTool: "maven",

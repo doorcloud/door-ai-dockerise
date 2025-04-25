@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aliou/dockerfile-gen/internal/types"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -65,5 +66,17 @@ func (c *OpenAIClient) AnalyzeFacts(ctx context.Context, facts map[string]interf
 // GenerateDockerfile generates a Dockerfile based on analyzed facts
 func (c *OpenAIClient) GenerateDockerfile(ctx context.Context, facts map[string]interface{}) (string, error) {
 	// Implementation of GenerateDockerfile method
+	return "", nil
+}
+
+// InferFacts analyzes snippets and returns facts about the project
+func InferFacts(ctx context.Context, snippets []string) (types.Facts, error) {
+	// TODO: Implement this function
+	return types.Facts{}, nil
+}
+
+// GenerateDockerfile generates a Dockerfile based on the provided facts
+func GenerateDockerfile(ctx context.Context, f types.Facts, currentDF string, errLog string, attempt int) (string, error) {
+	// TODO: Implement this function
 	return "", nil
 }

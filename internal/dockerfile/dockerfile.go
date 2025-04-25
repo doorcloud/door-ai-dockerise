@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aliou/dockerfile-gen/internal/facts"
 	"github.com/aliou/dockerfile-gen/internal/llm"
+	"github.com/aliou/dockerfile-gen/internal/types"
 )
 
 // Generate creates a Dockerfile based on the provided facts
-func Generate(ctx context.Context, facts facts.Facts, client llm.Client) (string, error) {
+func Generate(ctx context.Context, facts types.Facts, client llm.Client) (string, error) {
 	// Build the prompt for Dockerfile generation
 	prompt := buildDockerfilePrompt(facts, "", "")
 
@@ -24,7 +24,7 @@ func Generate(ctx context.Context, facts facts.Facts, client llm.Client) (string
 }
 
 // buildDockerfilePrompt creates the prompt for Dockerfile generation
-func buildDockerfilePrompt(facts facts.Facts, currentDF string, lastErr string) string {
+func buildDockerfilePrompt(facts types.Facts, currentDF string, lastErr string) string {
 	prompt := fmt.Sprintf(`You are a Docker expert. Create a production-ready Dockerfile for a %s application using %s.
 Facts about the application:
 - Language: %s
