@@ -1,11 +1,25 @@
 package detect
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
-	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func writeFiles(dir string, files []string) error {
+	for _, f := range files {
+		path := filepath.Join(dir, f)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, []byte{}, 0644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func TestDetect(t *testing.T) {
 	tests := []struct {
@@ -42,12 +56,12 @@ func TestDetect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fsys := fstest.MapFS{}
-			for _, f := range tt.files {
-				fsys[f] = &fstest.MapFile{}
+			dir := t.TempDir()
+			if err := writeFiles(dir, tt.files); err != nil {
+				t.Fatalf("writeFiles() error = %v", err)
 			}
 
-			got, err := Detect(fsys)
+			got, err := Detect(os.DirFS(dir))
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
