@@ -6,7 +6,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/aliou/dockerfile-gen/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 )
 
 func TestRun(t *testing.T) {

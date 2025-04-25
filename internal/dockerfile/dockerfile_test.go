@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aliou/dockerfile-gen/internal/llm"
-	"github.com/aliou/dockerfile-gen/internal/types"
+	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
 
 func TestGenerate(t *testing.T) {

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aliou/dockerfile-gen/internal/loop"
+	"github.com/doorcloud/door-ai-dockerise/internal/loop"
 )
 
 // TestIntegration_SpringBoot tests the full pipeline with a Spring Boot project

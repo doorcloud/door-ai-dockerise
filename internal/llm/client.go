@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aliou/dockerfile-gen/internal/types"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 	"github.com/sashabaranov/go-openai"
 )
 

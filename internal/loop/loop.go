@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/aliou/dockerfile-gen/internal/detect"
-	"github.com/aliou/dockerfile-gen/internal/dockerfile"
-	"github.com/aliou/dockerfile-gen/internal/facts"
-	"github.com/aliou/dockerfile-gen/internal/llm"
-	"github.com/aliou/dockerfile-gen/internal/types"
-	"github.com/aliou/dockerfile-gen/internal/verify"
+	"github.com/doorcloud/door-ai-dockerise/internal/detect"
+	"github.com/doorcloud/door-ai-dockerise/internal/dockerfile"
+	"github.com/doorcloud/door-ai-dockerise/internal/facts"
+	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
+	"github.com/doorcloud/door-ai-dockerise/internal/verify"
 )
 
 // Run executes the Dockerfile generation loop

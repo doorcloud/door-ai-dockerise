@@ -5,8 +5,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/aliou/dockerfile-gen/internal/detect"
-	"github.com/aliou/dockerfile-gen/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/detect"
+	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 )
 
 func TestInfer(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aliou/dockerfile-gen/internal/llm"
-	"github.com/aliou/dockerfile-gen/internal/types"
+	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
 
 // Generate creates a Dockerfile based on the provided facts

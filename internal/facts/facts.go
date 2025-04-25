@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/aliou/dockerfile-gen/internal/detect"
-	"github.com/aliou/dockerfile-gen/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/detect"
+	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 )
 
 // Facts represents the detected facts about a technology stack

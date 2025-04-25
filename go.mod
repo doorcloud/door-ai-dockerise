@@ -1,4 +1,4 @@
-module github.com/aliou/dockerfile-gen
+module github.com/doorcloud/door-ai-dockerise
 
 go 1.23.0
 
