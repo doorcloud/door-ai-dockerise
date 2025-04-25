@@ -26,7 +26,7 @@ func Detect(fsys fs.FS) (RuleInfo, error) {
 	}
 
 	// Check for Spring Boot with Gradle
-	if _, err := fs.Stat(fsys, "build.gradle"); err == nil {
+	if _, err := fs.Stat(fsys, "gradlew"); err == nil {
 		return RuleInfo{
 			Name: "spring-boot",
 			Tool: "gradle",
@@ -38,6 +38,14 @@ func Detect(fsys fs.FS) (RuleInfo, error) {
 		return RuleInfo{
 			Name: "spring-boot",
 			Tool: "gradle",
+		}, nil
+	}
+
+	// Check for Node.js projects that use pnpm
+	if _, err := fs.Stat(fsys, "pnpm-lock.yaml"); err == nil {
+		return RuleInfo{
+			Name: "node",
+			Tool: "pnpm",
 		}, nil
 	}
 
