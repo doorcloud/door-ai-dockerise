@@ -12,71 +12,54 @@ import (
 var ErrUnknownStack = errors.New("unknown technology stack")
 
 // DetectStack tries to detect the technology stack in the given repository
-func DetectStack(fsys fs.FS) (*detect.Rule, error) {
-	// Create detector
-	detector := &detect.SpringDetector{}
-
-	// Run detection
-	rule, ok := detector.Detect(fsys)
-	if !ok {
+func DetectStack(fsys fs.FS) (*detect.RuleInfo, error) {
+	rule, err := detect.Detect(fsys)
+	if err != nil {
 		return nil, ErrUnknownStack
 	}
-
 	return &rule, nil
 }
 
-// Detector defines the interface for project type detection
-type Detector interface {
-	Detect(fsys fs.FS) (detect.Rule, bool)
-}
-
-// Registry holds a list of registered detectors
+// Registry implements the types.Registry interface
 type Registry struct {
-	detectors []Detector
+	detectors []types.Detector
 }
 
 // NewRegistry creates a new empty registry
 func NewRegistry() *Registry {
 	return &Registry{
-		detectors: make([]Detector, 0),
+		detectors: make([]types.Detector, 0),
 	}
 }
 
-// Register adds a new detector to the registry
-func (r *Registry) Register(d Detector) {
-	r.detectors = append(r.detectors, d)
+// Register adds a detector to the registry
+func (r *Registry) Register(detector types.Detector) {
+	r.detectors = append(r.detectors, detector)
+}
+
+// GetDetectors returns all registered detectors
+func (r *Registry) GetDetectors() []types.Detector {
+	return r.detectors
 }
 
 // Detect tries each registered detector in order until one matches
-func (r *Registry) Detect(fsys fs.FS) (detect.Rule, bool) {
+func (r *Registry) Detect(fsys fs.FS) (detect.RuleInfo, bool) {
 	for _, d := range r.detectors {
-		if rule, ok := d.Detect(fsys); ok {
-			return rule, true
+		detected, err := d.Detect(fsys)
+		if err != nil {
+			continue
+		}
+		if detected {
+			return detect.RuleInfo{
+				Name: d.Name(),
+			}, true
 		}
 	}
-	return detect.Rule{}, false
-}
-
-var reg []types.Rule
-
-// Register adds a new rule to the registry
-func Register(r types.Rule) {
-	reg = append(reg, r)
-}
-
-// Detect checks all registered rules against the given filesystem
-// Returns the first matching rule or an error if no rule matches
-func Detect(fsys fs.FS) (types.Rule, error) {
-	for _, r := range reg {
-		if r.Detect(fsys) {
-			return r, nil
-		}
-	}
-	return nil, errors.New("no matching rule found")
+	return detect.RuleInfo{}, false
 }
 
 // GetFacts extracts facts about the project using the given rule
-func GetFacts(fsys fs.FS, rule types.Rule) (types.Facts, error) {
+func GetFacts(fsys fs.FS, rule detect.RuleInfo) (types.Facts, error) {
 	return types.Facts{
 		Language:  "java",
 		Framework: "spring-boot",

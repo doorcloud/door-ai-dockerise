@@ -1,37 +1,46 @@
 package pipeline
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+	"testing/fstest"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/llm"
-	_ "github.com/doorcloud/door-ai-dockerise/internal/rules/springboot"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestRun(t *testing.T) {
-	// Skip if Docker is not available
-	if os.Getenv("SKIP_DOCKER") == "1" {
-		t.Skip("Skipping test that requires Docker")
+func TestPipeline_Run(t *testing.T) {
+	fsys := fstest.MapFS{
+		"pom.xml": &fstest.MapFile{
+			Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>2.7.0</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.example</groupId>
+	<artifactId>demo</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>demo</name>
+	<description>Demo project for Spring Boot</description>
+	<properties>
+		<java.version>11</java.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+	</dependencies>
+</project>`),
+		},
 	}
 
-	// Set up test environment
-	os.Setenv("DG_MOCK_LLM", "1")
-	defer os.Unsetenv("DG_MOCK_LLM")
-
-	// Use test directory with pom.xml
-	testDir := filepath.Join("testdata")
-
-	client := llm.New()
-
-	if err := Run(testDir, client); err != nil {
-		t.Errorf("Run() error = %v", err)
-		return
-	}
-
-	// Check that Dockerfile was created
-	df := filepath.Join(testDir, "Dockerfile")
-	if _, err := os.Stat(df); err != nil {
-		t.Errorf("Run() did not create Dockerfile: %v", err)
-	}
+	p := &Pipeline{fsys: fsys}
+	dockerfile, err := p.Run()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, dockerfile)
 }

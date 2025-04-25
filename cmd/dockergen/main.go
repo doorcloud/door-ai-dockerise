@@ -1,31 +1,31 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"log"
 	"os"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
 )
 
 func main() {
-	// Enable verbose logging if DEBUG=true
-	if os.Getenv("DEBUG") == "true" {
-		log.SetFlags(log.LstdFlags | log.Lshortfile)
-	}
+	// Parse flags
+	dir := flag.String("dir", ".", "Directory containing the project")
+	flag.Parse()
 
-	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <repo-path>\n", os.Args[0])
+	// Create pipeline
+	p := pipeline.New(*dir)
+
+	// Run pipeline
+	dockerfile, err := p.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Initialize LLM client
-	client := llm.New()
-
-	// Run the pipeline
-	if err := pipeline.Run(os.Args[1], client); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	// Write Dockerfile
+	if err := os.WriteFile("Dockerfile", []byte(dockerfile), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing Dockerfile: %v\n", err)
 		os.Exit(1)
 	}
 }

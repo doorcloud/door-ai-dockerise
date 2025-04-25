@@ -7,7 +7,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/types"
+	"github.com/doorcloud/door-ai-dockerise/internal/detect"
+	"github.com/stretchr/testify/assert"
 )
 
 // fakeRule1 is a test rule that always matches
@@ -55,7 +56,7 @@ func TestDetectStack(t *testing.T) {
 	tests := []struct {
 		name     string
 		files    map[string]string
-		wantRule *types.Rule
+		expected *detect.RuleInfo
 		wantErr  error
 	}{
 		{
@@ -63,7 +64,7 @@ func TestDetectStack(t *testing.T) {
 			files: map[string]string{
 				"pom.xml": "<project></project>",
 			},
-			wantRule: &types.Rule{
+			expected: &detect.RuleInfo{
 				Name: "spring-boot",
 				Tool: "maven",
 			},
@@ -74,7 +75,7 @@ func TestDetectStack(t *testing.T) {
 			files: map[string]string{
 				"gradlew": "#!/bin/sh",
 			},
-			wantRule: &types.Rule{
+			expected: &detect.RuleInfo{
 				Name: "spring-boot",
 				Tool: "gradle",
 			},
@@ -83,7 +84,7 @@ func TestDetectStack(t *testing.T) {
 		{
 			name:     "no match",
 			files:    map[string]string{},
-			wantRule: nil,
+			expected: nil,
 			wantErr:  ErrUnknownStack,
 		},
 	}
@@ -101,8 +102,8 @@ func TestDetectStack(t *testing.T) {
 			if gotErr != tt.wantErr {
 				t.Errorf("DetectStack() error = %v, want %v", gotErr, tt.wantErr)
 			}
-			if tt.wantRule != nil && *gotRule != *tt.wantRule {
-				t.Errorf("DetectStack() rule = %v, want %v", gotRule, tt.wantRule)
+			if tt.expected != nil && *gotRule != *tt.expected {
+				t.Errorf("DetectStack() rule = %v, want %v", gotRule, tt.expected)
 			}
 		})
 	}
@@ -162,4 +163,27 @@ func TestDetect_EmptyDir(t *testing.T) {
 	if rule != nil {
 		t.Error("Expected no rule to match empty directory")
 	}
+}
+
+type mockDetector struct {
+	name     string
+	detected bool
+}
+
+func (d *mockDetector) Name() string {
+	return d.name
+}
+
+func (d *mockDetector) Detect(fsys fs.FS) (bool, error) {
+	return d.detected, nil
+}
+
+func TestRegistry(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&mockDetector{name: "mock", detected: true})
+
+	fsys := fstest.MapFS{}
+	detected, ok := reg.Detect(fsys)
+	assert.True(t, ok)
+	assert.Equal(t, detect.RuleInfo{Name: "mock"}, detected)
 }

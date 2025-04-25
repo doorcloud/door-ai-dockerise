@@ -4,21 +4,21 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/rules"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
 
-// Rule represents a technology stack detection rule
-type Rule struct {
+// RuleInfo represents information about a detected technology stack
+type RuleInfo struct {
 	Name string // e.g. "spring-boot"
 	Tool string // e.g. "maven"
 }
 
 // Detect checks if the given filesystem matches any known rules
-func Detect(path fs.FS) (Rule, error) {
+func Detect(path fs.FS) (RuleInfo, error) {
 	// Check for Spring Boot with Maven
 	exists, err := fs.Stat(path, "pom.xml")
 	if err == nil && !exists.IsDir() {
-		return Rule{
+		return RuleInfo{
 			Name: "spring-boot",
 			Tool: "maven",
 		}, nil
@@ -27,7 +27,7 @@ func Detect(path fs.FS) (Rule, error) {
 	// Check for Gradle wrapper
 	exists, err = fs.Stat(path, "gradlew")
 	if err == nil && !exists.IsDir() {
-		return Rule{
+		return RuleInfo{
 			Name: "spring-boot",
 			Tool: "gradle",
 		}, nil
@@ -36,21 +36,36 @@ func Detect(path fs.FS) (Rule, error) {
 	// Check for pnpm
 	exists, err = fs.Stat(path, "pnpm-lock.yaml")
 	if err == nil && !exists.IsDir() {
-		return Rule{
+		return RuleInfo{
 			Name: "node",
 			Tool: "pnpm",
 		}, nil
 	}
 
-	return Rule{}, nil
+	return RuleInfo{}, nil
 }
 
 // DetectStack analyzes the given directory and returns the detected technology stack
 func DetectStack(dir string) (string, error) {
 	fsys := os.DirFS(dir)
-	rule, err := rules.Detect(fsys)
+	rule, err := Detect(fsys)
 	if err != nil {
 		return "", err
 	}
-	return rule.Name(), nil
+	return rule.Name, nil
+}
+
+// DetectProjectType detects the project type using the provided registry
+func DetectProjectType(fsys fs.FS, registry types.Registry) (string, error) {
+	detectors := registry.GetDetectors()
+	for _, detector := range detectors {
+		detected, err := detector.Detect(fsys)
+		if err != nil {
+			return "", err
+		}
+		if detected {
+			return detector.Name(), nil
+		}
+	}
+	return "", nil
 }

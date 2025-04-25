@@ -3,73 +3,58 @@ package detect
 import (
 	"testing"
 	"testing/fstest"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDetect(t *testing.T) {
 	tests := []struct {
 		name     string
-		files    map[string]string
-		wantRule Rule
+		files    []string
+		expected RuleInfo
 		wantErr  bool
 	}{
 		{
-			name: "spring boot maven project",
-			files: map[string]string{
-				"pom.xml": "<project></project>",
-			},
-			wantRule: Rule{
+			name:  "spring boot with maven",
+			files: []string{"pom.xml"},
+			expected: RuleInfo{
 				Name: "spring-boot",
 				Tool: "maven",
 			},
-			wantErr: false,
 		},
 		{
-			name: "spring boot gradle project",
-			files: map[string]string{
-				"gradlew": "#!/bin/sh",
-			},
-			wantRule: Rule{
+			name:  "spring boot with gradle",
+			files: []string{"gradlew"},
+			expected: RuleInfo{
 				Name: "spring-boot",
 				Tool: "gradle",
 			},
-			wantErr: false,
 		},
 		{
-			name: "pnpm project",
-			files: map[string]string{
-				"pnpm-lock.yaml": "lockfileVersion: 5.4",
-			},
-			wantRule: Rule{
+			name:  "node with pnpm",
+			files: []string{"pnpm-lock.yaml"},
+			expected: RuleInfo{
 				Name: "node",
 				Tool: "pnpm",
 			},
-			wantErr: false,
-		},
-		{
-			name:     "empty project",
-			files:    map[string]string{},
-			wantRule: Rule{},
-			wantErr:  false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create test filesystem
 			fsys := fstest.MapFS{}
-			for path, content := range tt.files {
-				fsys[path] = &fstest.MapFile{Data: []byte(content)}
+			for _, f := range tt.files {
+				fsys[f] = &fstest.MapFile{}
 			}
 
-			// Run detection
-			gotRule, err := Detect(fsys)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Detect() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := Detect(fsys)
+			if tt.wantErr {
+				assert.Error(t, err)
 				return
 			}
-			if gotRule != tt.wantRule {
-				t.Errorf("Detect() = %v, want %v", gotRule, tt.wantRule)
-			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -17,29 +18,83 @@ import (
 //go:embed prompts/facts.tmpl
 var promptsFS embed.FS
 
-// Facts represents the detected facts about a technology stack
+// Facts represents information about a project
 type Facts struct {
-	Language  string            `json:"language"`   // "java", "node", "python"…
-	Framework string            `json:"framework"`  // "spring-boot", "express", "flask"…
-	BuildTool string            `json:"build_tool"` // "maven", "npm", "pip", …
-	BuildCmd  string            `json:"build_cmd"`  // e.g. "mvn package", "npm run build"
-	BuildDir  string            `json:"build_dir"`  // directory containing build files
-	StartCmd  string            `json:"start_cmd"`  // e.g. "java -jar app.jar"
-	Artifact  string            `json:"artifact"`   // glob or relative path
-	Ports     []int             `json:"ports"`      // e.g. [8080], [3000]
-	Health    string            `json:"health"`     // URL path or CMD
-	Env       map[string]string `json:"env"`        // e.g. {"NODE_ENV": "production"}
-	BaseImage string            `json:"base_image"` // e.g. "eclipse-temurin:17-jdk"
+	Language  string            `json:"language"`
+	Framework string            `json:"framework"`
+	BuildTool string            `json:"build_tool"`
+	BuildCmd  string            `json:"build_cmd"`
+	BuildDir  string            `json:"build_dir"`
+	StartCmd  string            `json:"start_cmd"`
+	Artifact  string            `json:"artifact"`
+	Ports     []int             `json:"ports"`
+	Health    string            `json:"health"`
+	BaseImage string            `json:"base_image"`
+	Env       map[string]string `json:"env"`
+}
+
+// GetFacts extracts facts about the project in the given directory
+func GetFacts(dir string) (Facts, error) {
+	fsys := os.DirFS(dir)
+	rule, err := detect.Detect(fsys)
+	if err != nil {
+		return Facts{}, err
+	}
+	return GetFactsFromRule(fsys, rule)
+}
+
+// GetFactsFromRule extracts facts about the project using the given rule
+func GetFactsFromRule(fsys fs.FS, rule detect.RuleInfo) (Facts, error) {
+	switch rule.Name {
+	case "spring-boot":
+		return getSpringBootFacts(fsys, rule)
+	case "node":
+		return getNodeFacts(fsys, rule)
+	default:
+		return Facts{}, nil
+	}
+}
+
+func getSpringBootFacts(fsys fs.FS, rule detect.RuleInfo) (Facts, error) {
+	return Facts{
+		Language:  "java",
+		Framework: "spring-boot",
+		BuildTool: rule.Tool,
+		BuildCmd:  "./mvnw -q package -DskipTests",
+		BuildDir:  ".",
+		StartCmd:  "java -jar target/*.jar",
+		Artifact:  "target/*.jar",
+		Ports:     []int{8080},
+		Health:    "/actuator/health",
+		BaseImage: "openjdk:11-jdk",
+		Env:       map[string]string{},
+	}, nil
+}
+
+func getNodeFacts(fsys fs.FS, rule detect.RuleInfo) (Facts, error) {
+	return Facts{
+		Language:  "javascript",
+		Framework: "node",
+		BuildTool: rule.Tool,
+		BuildCmd:  "npm install",
+		BuildDir:  ".",
+		StartCmd:  "npm start",
+		Artifact:  ".",
+		Ports:     []int{3000},
+		Health:    "/health",
+		BaseImage: "node:18-alpine",
+		Env:       map[string]string{},
+	}, nil
 }
 
 // Infer analyzes the filesystem and returns facts about the project
-func Infer(ctx context.Context, fsys fs.FS, rule detect.Rule) (Facts, error) {
+func Infer(ctx context.Context, fsys fs.FS, rule detect.RuleInfo) (Facts, error) {
 	client := llm.New()
 	return InferWithClient(ctx, fsys, rule, client)
 }
 
 // InferWithClient analyzes the project using the provided client
-func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.Rule, client llm.Client) (Facts, error) {
+func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.RuleInfo, client llm.Client) (Facts, error) {
 	// Get relevant snippets
 	snippets, err := getSnippets(fsys)
 	if err != nil {

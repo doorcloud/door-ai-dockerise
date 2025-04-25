@@ -4,27 +4,27 @@ import (
 	"io/fs"
 )
 
-// SpringBoot implements the Rule interface for Spring Boot projects
+// SpringBoot implements the types.Detector interface for Spring Boot projects
 type SpringBoot struct{}
 
 func (s *SpringBoot) Name() string {
 	return "spring-boot"
 }
 
-func (s *SpringBoot) Detect(fsys fs.FS) bool {
+func (s *SpringBoot) Detect(fsys fs.FS) (bool, error) {
 	// Check for pom.xml
 	if _, err := fs.Stat(fsys, "pom.xml"); err != nil {
-		return false
+		return false, nil
 	}
 
 	// Check for spring-boot dependency in pom.xml
 	pomContent, err := fs.ReadFile(fsys, "pom.xml")
 	if err != nil {
-		return false
+		return false, nil
 	}
 
 	// Simple check for spring-boot dependency
-	return containsSpringBootDependency(string(pomContent))
+	return containsSpringBootDependency(string(pomContent)), nil
 }
 
 func containsSpringBootDependency(pomContent string) bool {
@@ -46,5 +46,5 @@ func contains(s, substr string) bool {
 }
 
 func init() {
-	Register(&SpringBoot{})
+	NewRegistry().Register(&SpringBoot{})
 }

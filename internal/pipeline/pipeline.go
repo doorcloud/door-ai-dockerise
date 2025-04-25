@@ -1,48 +1,44 @@
 package pipeline
 
 import (
-	"context"
-	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/dockerfile"
-	"github.com/doorcloud/door-ai-dockerise/internal/llm"
-	"github.com/doorcloud/door-ai-dockerise/internal/rules"
-	"github.com/doorcloud/door-ai-dockerise/internal/verify"
+	"github.com/doorcloud/door-ai-dockerise/internal/detect"
+	"github.com/doorcloud/door-ai-dockerise/internal/facts"
 )
 
-// Run executes the full pipeline
-func Run(repoPath string, client llm.Client) error {
+// Pipeline represents the Dockerfile generation pipeline
+type Pipeline struct {
+	fsys fs.FS
+}
+
+// New creates a new pipeline for the given directory
+func New(dir string) *Pipeline {
+	return &Pipeline{
+		fsys: os.DirFS(dir),
+	}
+}
+
+// Run executes the pipeline and returns the generated Dockerfile
+func (p *Pipeline) Run() (string, error) {
 	// Detect project type
-	fsys := os.DirFS(repoPath)
-	rule, err := rules.Detect(fsys)
+	rule, err := detect.Detect(p.fsys)
 	if err != nil {
-		return fmt.Errorf("no rule matched: %v", err)
+		return "", err
 	}
 
 	// Extract facts
-	facts, err := rules.GetFacts(fsys, rule)
+	f, err := facts.GetFactsFromRule(p.fsys, rule)
 	if err != nil {
-		return fmt.Errorf("failed to extract facts: %v", err)
+		return "", err
 	}
 
 	// Generate Dockerfile
-	dockerfilePath := filepath.Join(repoPath, "Dockerfile")
-	df, err := dockerfile.Generate(context.Background(), facts, client)
-	if err != nil {
-		return fmt.Errorf("failed to generate Dockerfile: %v", err)
-	}
+	return generateDockerfile(f)
+}
 
-	// Write Dockerfile
-	if err := os.WriteFile(dockerfilePath, []byte(df), 0644); err != nil {
-		return fmt.Errorf("failed to write Dockerfile: %v", err)
-	}
-
-	// Verify Dockerfile
-	if err := verify.Verify(context.Background(), fsys, df); err != nil {
-		return fmt.Errorf("failed to verify Dockerfile: %v", err)
-	}
-
-	return nil
+func generateDockerfile(f facts.Facts) (string, error) {
+	// TODO: Implement Dockerfile generation
+	return "", nil
 }
