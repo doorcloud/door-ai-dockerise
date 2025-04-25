@@ -5,9 +5,24 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
+
+// mockClient implements the llm.Client interface for testing
+type mockClient struct{}
+
+func (m *mockClient) Chat(model, prompt string) (string, error) {
+	return `FROM openjdk:11-jdk
+WORKDIR /app
+COPY mvnw .
+COPY .mvn .mvn
+COPY pom.xml .
+RUN chmod +x ./mvnw && ./mvnw -q package -DskipTests
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD curl -f http://localhost:8080/actuator/health || exit 1
+CMD ["java", "-jar", "target/*.jar"]`, nil
+}
 
 func TestGenerate(t *testing.T) {
 	// Create test facts
@@ -25,22 +40,8 @@ func TestGenerate(t *testing.T) {
 		Env:       map[string]string{},
 	}
 
-	// Set up mock client
-	mockClient := &llm.Mock{
-		Dockerfile: `FROM openjdk:11-jdk
-WORKDIR /app
-COPY mvnw .
-COPY .mvn .mvn
-COPY pom.xml .
-RUN chmod +x ./mvnw && ./mvnw -q package -DskipTests
-EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD curl -f http://localhost:8080/actuator/health || exit 1
-CMD ["java", "-jar", "target/*.jar"]`,
-	}
-
 	// Generate Dockerfile
-	dockerfile, err := Generate(context.Background(), testFacts, mockClient)
+	dockerfile, err := Generate(context.Background(), testFacts, &mockClient{})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}

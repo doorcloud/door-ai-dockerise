@@ -2,7 +2,10 @@ package llm
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/types"
 	"github.com/sashabaranov/go-openai"
@@ -25,24 +28,29 @@ type Facts struct {
 
 // Client defines the interface for LLM interactions
 type Client interface {
-	Chat(ctx context.Context, prompt string) (string, error)
+	Chat(model, prompt string) (string, error)
 }
 
-// OpenAIClient implements Client using OpenAI's API
-type OpenAIClient struct {
-	client *openai.Client
-}
+// New returns a mock or real LLM client based on environment variables
+func New() Client {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	mockLLM := os.Getenv("DG_MOCK_LLM") == "1"
 
-// NewClient creates a new OpenAI client
-func NewClient(apiKey string) Client {
+	if apiKey == "" || mockLLM {
+		return &mockClient{}
+	}
 	return &OpenAIClient{
 		client: openai.NewClient(apiKey),
 	}
 }
 
-// Chat sends a prompt to OpenAI and returns the response
-func (c *OpenAIClient) Chat(ctx context.Context, prompt string) (string, error) {
-	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+// OpenAIClient implements the Client interface using OpenAI's API
+type OpenAIClient struct {
+	client *openai.Client
+}
+
+func (c *OpenAIClient) Chat(model, prompt string) (string, error) {
+	resp, err := c.client.CreateChatCompletion(context.Background(), openai.ChatCompletionRequest{
 		Model: openai.GPT4,
 		Messages: []openai.ChatCompletionMessage{
 			{
@@ -79,4 +87,39 @@ func InferFacts(ctx context.Context, snippets []string) (types.Facts, error) {
 func GenerateDockerfile(ctx context.Context, f types.Facts, currentDF string, errLog string, attempt int) (string, error) {
 	// TODO: Implement this function
 	return "", nil
+}
+
+// mockClient implements the Client interface using local fixtures
+type mockClient struct{}
+
+func (c *mockClient) Chat(model, prompt string) (string, error) {
+	// Compute hash of the prompt
+	hash := fmt.Sprintf("%x", sha1.Sum([]byte(prompt)))
+
+	// Determine which fixture file to use based on the prompt content
+	var fixtureFile string
+	if model == "facts" {
+		fixtureFile = "testdata/mocks/facts.json"
+	} else {
+		fixtureFile = "testdata/mocks/dockerfile.json"
+	}
+
+	// Read and parse the fixture file
+	data, err := os.ReadFile(fixtureFile)
+	if err != nil {
+		return "", fmt.Errorf("mock LLM: failed to read fixture file: %v", err)
+	}
+
+	var fixtures map[string]string
+	if err := json.Unmarshal(data, &fixtures); err != nil {
+		return "", fmt.Errorf("mock LLM: failed to parse fixture file: %v", err)
+	}
+
+	// Look up the response
+	response, exists := fixtures[hash]
+	if !exists {
+		return "", fmt.Errorf("mock LLM: fixture missing for %s; add it to %s", hash, fixtureFile)
+	}
+
+	return response, nil
 }

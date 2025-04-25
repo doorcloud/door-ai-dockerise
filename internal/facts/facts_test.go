@@ -6,8 +6,26 @@ import (
 	"testing/fstest"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/detect"
-	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 )
+
+// mockClient implements the llm.Client interface for testing
+type mockClient struct{}
+
+func (m *mockClient) Chat(model, prompt string) (string, error) {
+	return `{
+		"language": "java",
+		"framework": "spring-boot",
+		"build_tool": "maven",
+		"build_cmd": "./mvnw -q package",
+		"build_dir": ".",
+		"start_cmd": "java -jar target/*.jar",
+		"artifact": "target/*.jar",
+		"ports": [8080],
+		"health": "/actuator/health",
+		"env": {},
+		"base_image": "eclipse-temurin:17-jdk"
+	}`, nil
+}
 
 func TestInfer(t *testing.T) {
 	// Create test filesystem
@@ -30,30 +48,13 @@ func TestInfer(t *testing.T) {
 		},
 	}
 
-	// Set up mock client
-	mockClient := &llm.Mock{
-		FactsJSON: `{
-			"language": "java",
-			"framework": "spring-boot",
-			"build_tool": "maven",
-			"build_cmd": "./mvnw -q package",
-			"build_dir": ".",
-			"start_cmd": "java -jar target/*.jar",
-			"artifact": "target/*.jar",
-			"ports": [8080],
-			"health": "/actuator/health",
-			"env": {},
-			"base_image": "eclipse-temurin:17-jdk"
-		}`,
-	}
-
 	// Test inference with mock client
 	rule := detect.Rule{
 		Name: "spring-boot",
 		Tool: "maven",
 	}
 
-	facts, err := InferWithClient(context.Background(), fsys, rule, mockClient)
+	facts, err := InferWithClient(context.Background(), fsys, rule, &mockClient{})
 	if err != nil {
 		t.Fatalf("Infer() error = %v", err)
 	}

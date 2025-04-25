@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -35,13 +34,7 @@ type Facts struct {
 
 // Infer analyzes the filesystem and returns facts about the project
 func Infer(ctx context.Context, fsys fs.FS, rule detect.Rule) (Facts, error) {
-	// Initialize OpenAI client
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return Facts{}, fmt.Errorf("OPENAI_API_KEY is required")
-	}
-	client := llm.NewClient(apiKey)
-
+	client := llm.New()
 	return InferWithClient(ctx, fsys, rule, client)
 }
 
@@ -60,7 +53,7 @@ func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.Rule, client l
 	}
 
 	// Get facts from LLM
-	response, err := client.Chat(ctx, prompt)
+	response, err := client.Chat("facts", prompt)
 	if err != nil {
 		return Facts{}, fmt.Errorf("chat: %w", err)
 	}

@@ -27,9 +27,9 @@ func TestIntegration_SpringBoot(t *testing.T) {
 		t.Skip("docker not available")
 	}
 
-	// Skip if OpenAI key not set
-	if os.Getenv("OPENAI_API_KEY") == "" {
-		t.Skip("OPENAI_API_KEY not set")
+	// Skip if OpenAI key not set and mock LLM not enabled
+	if os.Getenv("OPENAI_API_KEY") == "" && os.Getenv("DG_MOCK_LLM") != "1" {
+		t.Skip("OPENAI_API_KEY not set and DG_MOCK_LLM not enabled")
 	}
 
 	// Set build timeout from env or default
@@ -51,7 +51,7 @@ func TestIntegration_SpringBoot(t *testing.T) {
 	// Run through the loop package directly
 	t.Run("via loop package", func(t *testing.T) {
 		fsys := os.DirFS(testDir)
-		client := llm.NewClient(os.Getenv("OPENAI_API_KEY"))
+		client := llm.New()
 		dockerfile, err := loop.Run(ctx, fsys, client)
 		if err != nil {
 			t.Fatalf("loop.Run failed: %v", err)

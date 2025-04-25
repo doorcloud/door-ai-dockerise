@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/facts"
@@ -13,18 +14,18 @@ import (
 )
 
 func main() {
+	// Enable verbose logging if DEBUG=true
+	if os.Getenv("DEBUG") == "true" {
+		log.SetFlags(log.LstdFlags | log.Lshortfile)
+	}
+
 	if len(os.Args) != 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <repo-path>\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	// Initialize LLM client
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "OPENAI_API_KEY is required")
-		os.Exit(1)
-	}
-	client := llm.NewClient(apiKey)
+	client := llm.New()
 
 	// Get filesystem
 	fsys := os.DirFS(os.Args[1])

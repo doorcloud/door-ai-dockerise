@@ -9,7 +9,6 @@ A Go-based tool for generating Dockerfiles with customizable configurations.
 ├── cmd/          # Main application entry points
 ├── internal/     # Private application code
 ├── pkg/          # Public library code
-├── scripts/      # Utility scripts
 └── test/         # Test files
 ```
 
@@ -51,6 +50,28 @@ Run the test suite:
 ```bash
 go test ./...
 ```
+
+### Offline Testing
+The test suite can run without an OpenAI API key by using mock responses:
+```bash
+DG_MOCK_LLM=1 go test ./...
+```
+
+To run tests with the real OpenAI API:
+```bash
+OPENAI_API_KEY=your_key go test ./...
+```
+
+## Debugging
+
+The following environment variables can be used to enable various debug features:
+
+- `DEBUG=true` - Enable global verbose logging with file and line information
+- `DG_DEBUG=1` - Enable additional logging in docker-gen specific code paths
+- `OPENAI_LOG_LEVEL=debug` - Show raw HTTP traces for OpenAI API calls
+- `DG_E2E=1` - Enable the full end-to-end test suite (longer running tests)
+
+These can be set in your `.env` file or directly in the shell before running commands.
 
 ## Usage
 
