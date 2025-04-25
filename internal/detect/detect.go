@@ -1,11 +1,15 @@
 package detect
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
+
+// ErrUnknownStack is returned when no rule matches the project
+var ErrUnknownStack = errors.New("unknown technology stack")
 
 // RuleInfo represents information about a detected technology stack
 type RuleInfo struct {

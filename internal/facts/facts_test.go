@@ -2,124 +2,124 @@ package facts
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/detect"
+	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 	"github.com/stretchr/testify/assert"
 )
 
-type mockClient struct {
-	response string
-}
-
-func (c *mockClient) Chat(prompt string, model string) (string, error) {
-	return c.response, nil
-}
-
 func TestInferWithClient(t *testing.T) {
+	// Create a mock filesystem with a Java Spring Boot application
 	fsys := fstest.MapFS{
-		"src/main/java/com/example/App.java": &fstest.MapFile{
+		"pom.xml": &fstest.MapFile{
 			Data: []byte(`
-package com.example;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-@SpringBootApplication
-public class App {
-    public static void main(String[] args) {
-        SpringApplication.run(App.class, args);
-    }
-}
-`),
+				<project>
+					<groupId>com.example</groupId>
+					<artifactId>demo</artifactId>
+					<version>0.0.1-SNAPSHOT</version>
+					<dependencies>
+						<dependency>
+							<groupId>org.springframework.boot</groupId>
+							<artifactId>spring-boot-starter-web</artifactId>
+						</dependency>
+					</dependencies>
+				</project>
+			`),
 		},
 	}
 
-	client := &mockClient{
-		response: `{
-			"language": "java",
-			"framework": "spring-boot",
-			"buildTool": "maven",
-			"buildCmd": "./mvnw package",
-			"buildDir": ".",
-			"startCmd": "java -jar target/*.jar",
-			"artifact": "target/*.jar",
-			"ports": [8080],
-			"health": "/actuator/health",
-			"baseImage": "openjdk:11-jdk",
-			"env": {}
-		}`,
+	// Create fixture directory and file
+	fixtureDir := filepath.Join("testdata", "fixtures", "facts")
+	if err := os.MkdirAll(fixtureDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll("testdata")
+
+	fixturePath := filepath.Join(fixtureDir, "response.json")
+	fixtureContent := `{
+		"choices": [
+			{
+				"message": {
+					"content": "{\"language\":\"java\",\"framework\":\"spring-boot\",\"build_tool\":\"maven\",\"build_cmd\":\"mvn clean package\",\"build_dir\":\"target\",\"start_cmd\":\"java -jar target/demo-0.0.1-SNAPSHOT.jar\",\"artifact\":\"target/demo-0.0.1-SNAPSHOT.jar\",\"ports\":[8080],\"health\":\"/actuator/health\",\"base_image\":\"eclipse-temurin:17-jre\",\"env\":{\"SPRING_PROFILES_ACTIVE\":\"prod\"}}"
+				}
+			}
+		]
+	}`
+	if err := os.WriteFile(fixturePath, []byte(fixtureContent), 0644); err != nil {
+		t.Fatal(err)
 	}
 
+	// Create a mock client
+	mockClient := &llm.MockClient{}
+
+	// Create a mock rule info
 	rule := detect.RuleInfo{
 		Name: "spring-boot",
 		Tool: "maven",
 	}
 
-	facts, err := InferWithClient(context.Background(), fsys, rule, client)
+	// Call InferWithClient
+	facts, err := InferWithClient(context.Background(), fsys, rule, mockClient)
 	assert.NoError(t, err)
+
+	// Verify the facts
 	assert.Equal(t, "java", facts.Language)
 	assert.Equal(t, "spring-boot", facts.Framework)
 	assert.Equal(t, "maven", facts.BuildTool)
-	assert.Equal(t, "./mvnw package", facts.BuildCmd)
-	assert.Equal(t, ".", facts.BuildDir)
-	assert.Equal(t, "java -jar target/*.jar", facts.StartCmd)
-	assert.Equal(t, "target/*.jar", facts.Artifact)
+	assert.Equal(t, "mvn clean package", facts.BuildCmd)
+	assert.Equal(t, "target", facts.BuildDir)
+	assert.Equal(t, "java -jar target/demo-0.0.1-SNAPSHOT.jar", facts.StartCmd)
+	assert.Equal(t, "target/demo-0.0.1-SNAPSHOT.jar", facts.Artifact)
 	assert.Equal(t, []int{8080}, facts.Ports)
 	assert.Equal(t, "/actuator/health", facts.Health)
-	assert.Equal(t, "openjdk:11-jdk", facts.BaseImage)
-	assert.Empty(t, facts.Env)
+	assert.Equal(t, "eclipse-temurin:17-jre", facts.BaseImage)
+	assert.Equal(t, map[string]string{"SPRING_PROFILES_ACTIVE": "prod"}, facts.Env)
 }
 
 func TestGetFacts(t *testing.T) {
+	// Create a mock filesystem with a pom.xml file
 	fsys := fstest.MapFS{
 		"pom.xml": &fstest.MapFile{
-			Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>2.7.0</version>
-		<relativePath/> <!-- lookup parent from repository -->
-	</parent>
-	<groupId>com.example</groupId>
-	<artifactId>demo</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>demo</name>
-	<description>Demo project for Spring Boot</description>
-	<properties>
-		<java.version>11</java.version>
-	</properties>
-	<dependencies>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
-		</dependency>
-	</dependencies>
-</project>`),
+			Data: []byte(`
+				<project>
+					<groupId>com.example</groupId>
+					<artifactId>demo</artifactId>
+					<version>0.0.1-SNAPSHOT</version>
+					<dependencies>
+						<dependency>
+							<groupId>org.springframework.boot</groupId>
+							<artifactId>spring-boot-starter-web</artifactId>
+						</dependency>
+					</dependencies>
+				</project>
+			`),
 		},
 	}
 
+	// Create a mock rule info
 	rule := detect.RuleInfo{
 		Name: "spring-boot",
 		Tool: "maven",
 	}
 
+	// Call GetFactsFromRule
 	facts, err := GetFactsFromRule(fsys, rule)
 	assert.NoError(t, err)
+
+	// Verify the facts
 	assert.Equal(t, "java", facts.Language)
 	assert.Equal(t, "spring-boot", facts.Framework)
 	assert.Equal(t, "maven", facts.BuildTool)
-	assert.Equal(t, "./mvnw -q package -DskipTests", facts.BuildCmd)
-	assert.Equal(t, ".", facts.BuildDir)
-	assert.Equal(t, "java -jar target/*.jar", facts.StartCmd)
-	assert.Equal(t, "target/*.jar", facts.Artifact)
+	assert.Equal(t, "mvn clean package", facts.BuildCmd)
+	assert.Equal(t, "target", facts.BuildDir)
+	assert.Equal(t, "java -jar target/demo-0.0.1-SNAPSHOT.jar", facts.StartCmd)
+	assert.Equal(t, "target/demo-0.0.1-SNAPSHOT.jar", facts.Artifact)
 	assert.Equal(t, []int{8080}, facts.Ports)
 	assert.Equal(t, "/actuator/health", facts.Health)
-	assert.Equal(t, "openjdk:11-jdk", facts.BaseImage)
-	assert.Empty(t, facts.Env)
+	assert.Equal(t, "eclipse-temurin:17-jre", facts.BaseImage)
+	assert.Equal(t, map[string]string{"SPRING_PROFILES_ACTIVE": "prod"}, facts.Env)
 }

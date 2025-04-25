@@ -27,15 +27,9 @@ type Registry struct {
 
 // NewRegistry creates a new empty registry
 func NewRegistry() *Registry {
-	reg := &Registry{
+	return &Registry{
 		detectors: make([]types.Detector, 0),
 	}
-
-	// Register build plans
-	reg.Register(&springDetector{})
-	reg.Register(&nodeDetector{})
-
-	return reg
 }
 
 // Register adds a detector to the registry
@@ -79,22 +73,22 @@ func GetFacts(fsys fs.FS, rule detect.RuleInfo) (types.Facts, error) {
 				Artifact:  "build/libs/*.jar",
 				Ports:     []int{8080},
 				Health:    "/actuator/health",
-				BaseImage: "openjdk:11-jdk",
-				Env:       map[string]string{},
+				BaseImage: "eclipse-temurin:17-jre",
+				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
 			}, nil
 		}
 		return types.Facts{
 			Language:  "java",
 			Framework: "spring-boot",
 			BuildTool: "maven",
-			BuildCmd:  "./mvnw -q package -DskipTests",
-			BuildDir:  ".",
-			StartCmd:  "java -jar target/*.jar",
-			Artifact:  "target/*.jar",
+			BuildCmd:  "mvn clean package",
+			BuildDir:  "target",
+			StartCmd:  "java -jar target/demo-0.0.1-SNAPSHOT.jar",
+			Artifact:  "target/demo-0.0.1-SNAPSHOT.jar",
 			Ports:     []int{8080},
 			Health:    "/actuator/health",
-			BaseImage: "openjdk:11-jdk",
-			Env:       map[string]string{},
+			BaseImage: "eclipse-temurin:17-jre",
+			Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
 		}, nil
 	case "node":
 		if rule.Tool == "pnpm" {

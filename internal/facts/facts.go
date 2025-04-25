@@ -13,110 +13,59 @@ import (
 
 	"github.com/doorcloud/door-ai-dockerise/internal/detect"
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/rules"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
 
 //go:embed prompts/facts.tmpl
 var promptsFS embed.FS
 
-// Facts represents information about a project
-type Facts struct {
-	Language  string            `json:"language"`
-	Framework string            `json:"framework"`
-	BuildTool string            `json:"build_tool"`
-	BuildCmd  string            `json:"build_cmd"`
-	BuildDir  string            `json:"build_dir"`
-	StartCmd  string            `json:"start_cmd"`
-	Artifact  string            `json:"artifact"`
-	Ports     []int             `json:"ports"`
-	Health    string            `json:"health"`
-	BaseImage string            `json:"base_image"`
-	Env       map[string]string `json:"env"`
-}
-
 // GetFacts extracts facts about the project in the given directory
-func GetFacts(dir string) (Facts, error) {
+func GetFacts(dir string) (types.Facts, error) {
 	fsys := os.DirFS(dir)
-	rule, err := detect.Detect(fsys)
-	if err != nil {
-		return Facts{}, err
+	reg := rules.NewRegistry()
+	rule, ok := reg.Detect(fsys)
+	if !ok {
+		return types.Facts{}, detect.ErrUnknownStack
 	}
 	return GetFactsFromRule(fsys, rule)
 }
 
 // GetFactsFromRule extracts facts about the project using the given rule
-func GetFactsFromRule(fsys fs.FS, rule detect.RuleInfo) (Facts, error) {
-	switch rule.Name {
-	case "spring-boot":
-		return getSpringBootFacts(fsys, rule)
-	case "node":
-		return getNodeFacts(fsys, rule)
-	default:
-		return Facts{}, nil
-	}
-}
-
-func getSpringBootFacts(fsys fs.FS, rule detect.RuleInfo) (Facts, error) {
-	return Facts{
-		Language:  "java",
-		Framework: "spring-boot",
-		BuildTool: rule.Tool,
-		BuildCmd:  "./mvnw -q package -DskipTests",
-		BuildDir:  ".",
-		StartCmd:  "java -jar target/*.jar",
-		Artifact:  "target/*.jar",
-		Ports:     []int{8080},
-		Health:    "/actuator/health",
-		BaseImage: "openjdk:11-jdk",
-		Env:       map[string]string{},
-	}, nil
-}
-
-func getNodeFacts(fsys fs.FS, rule detect.RuleInfo) (Facts, error) {
-	return Facts{
-		Language:  "javascript",
-		Framework: "node",
-		BuildTool: rule.Tool,
-		BuildCmd:  "npm install",
-		BuildDir:  ".",
-		StartCmd:  "npm start",
-		Artifact:  ".",
-		Ports:     []int{3000},
-		Health:    "/health",
-		BaseImage: "node:18-alpine",
-		Env:       map[string]string{},
-	}, nil
+func GetFactsFromRule(fsys fs.FS, rule detect.RuleInfo) (types.Facts, error) {
+	return rules.GetFacts(fsys, rule)
 }
 
 // Infer analyzes the filesystem and returns facts about the project
-func Infer(ctx context.Context, fsys fs.FS, rule detect.RuleInfo) (Facts, error) {
+func Infer(ctx context.Context, fsys fs.FS, rule detect.RuleInfo) (types.Facts, error) {
 	client := llm.New()
 	return InferWithClient(ctx, fsys, rule, client)
 }
 
 // InferWithClient analyzes the project using the provided client
-func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.RuleInfo, client llm.Client) (Facts, error) {
+func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.RuleInfo, client llm.Client) (types.Facts, error) {
 	// Get relevant snippets
 	snippets, err := getSnippets(fsys)
 	if err != nil {
-		return Facts{}, fmt.Errorf("get snippets: %w", err)
+		return types.Facts{}, fmt.Errorf("get snippets: %w", err)
 	}
 
 	// Build prompt from template
-	prompt, err := buildFactsPrompt(snippets)
+	prompt, err := buildFactsPrompt(snippets, rule.Tool)
 	if err != nil {
-		return Facts{}, fmt.Errorf("build prompt: %w", err)
+		return types.Facts{}, fmt.Errorf("build prompt: %w", err)
 	}
 
 	// Get facts from LLM
 	response, err := client.Chat(prompt, "facts")
 	if err != nil {
-		return Facts{}, fmt.Errorf("chat: %w", err)
+		return types.Facts{}, fmt.Errorf("chat: %w", err)
 	}
 
 	// Parse response
-	var facts Facts
+	var facts types.Facts
 	if err := json.Unmarshal([]byte(response), &facts); err != nil {
-		return Facts{}, fmt.Errorf("parse response: %w", err)
+		return types.Facts{}, fmt.Errorf("parse response: %w", err)
 	}
 
 	return facts, nil
@@ -166,7 +115,7 @@ func isCodeFile(path string) bool {
 }
 
 // buildFactsPrompt creates the prompt for fact extraction
-func buildFactsPrompt(snippets []string) (string, error) {
+func buildFactsPrompt(snippets []string, tool string) (string, error) {
 	// Read template
 	tmplContent, err := promptsFS.ReadFile("prompts/facts.tmpl")
 	if err != nil {
@@ -183,8 +132,10 @@ func buildFactsPrompt(snippets []string) (string, error) {
 	var result strings.Builder
 	data := struct {
 		Snippets string
+		Tool     string
 	}{
 		Snippets: strings.Join(snippets, "\n\n"),
+		Tool:     tool,
 	}
 	if err := tmpl.Execute(&result, data); err != nil {
 		return "", fmt.Errorf("execute template: %w", err)

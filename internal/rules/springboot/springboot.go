@@ -2,6 +2,7 @@ package springboot
 
 import (
 	"io/fs"
+	"strings"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 )
@@ -36,15 +37,11 @@ func containsSpringBootDependency(pomContent string) bool {
 
 func containsAll(s string, substrings ...string) bool {
 	for _, substr := range substrings {
-		if !contains(s, substr) {
+		if !strings.Contains(s, substr) {
 			return false
 		}
 	}
 	return true
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && s[0:len(substr)] == substr
 }
 
 func init() {

@@ -4,6 +4,8 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/doorcloud/door-ai-dockerise/internal/rules"
+	"github.com/doorcloud/door-ai-dockerise/internal/rules/springboot"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +26,7 @@ func TestPipeline_Run(t *testing.T) {
 	<groupId>com.example</groupId>
 	<artifactId>demo</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>demo</name>
+	<n>demo<n>
 	<description>Demo project for Spring Boot</description>
 	<properties>
 		<java.version>11</java.version>
@@ -39,7 +41,13 @@ func TestPipeline_Run(t *testing.T) {
 		},
 	}
 
-	p := &Pipeline{fsys: fsys}
+	reg := rules.NewRegistry()
+	reg.Register(&springboot.SpringBoot{})
+
+	p := &Pipeline{
+		fsys: fsys,
+		reg:  reg,
+	}
 	dockerfile, err := p.Run()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, dockerfile)
