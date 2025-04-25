@@ -102,6 +102,13 @@ func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
 		return fmt.Errorf("create .dockerignore: %w", err)
 	}
 
+	// Ensure mvnw is executable if it exists
+	if p := filepath.Join(dir, "mvnw"); fileExists(p) {
+		if err := os.Chmod(p, 0755); err != nil {
+			return fmt.Errorf("chmod mvnw: %w", err)
+		}
+	}
+
 	// Initialize Docker client
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
@@ -211,4 +218,10 @@ docs
 !.mvn/**
 `
 	return os.WriteFile(filepath.Join(dir, ".dockerignore"), []byte(ignoreContent), 0644)
+}
+
+// fileExists checks if a file exists
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
