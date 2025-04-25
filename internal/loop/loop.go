@@ -17,7 +17,7 @@ const maxRetries = 3
 // 1. Infer facts about the project
 // 2. Generate Dockerfile
 // 3. Verify the Dockerfile
-// 4. If verification fails, retry up to maxRetries times
+// 4. If verification fails, retry with error feedback
 func Run(ctx context.Context, path fs.FS) (string, error) {
 	// Get facts about the project
 	rule := detect.Rule{
@@ -30,10 +30,11 @@ func Run(ctx context.Context, path fs.FS) (string, error) {
 		return "", fmt.Errorf("infer facts: %w", err)
 	}
 
-	var lastError error
+	var lastError string
+	var lastDockerfile string
 	for i := 0; i < maxRetries; i++ {
-		// Generate Dockerfile
-		df, err := dockerfile.Generate(ctx, projectFacts)
+		// Generate Dockerfile with previous error feedback
+		df, err := dockerfile.Generate(ctx, projectFacts, lastDockerfile, lastError)
 		if err != nil {
 			return "", fmt.Errorf("generate dockerfile: %w", err)
 		}
@@ -44,8 +45,9 @@ func Run(ctx context.Context, path fs.FS) (string, error) {
 			return df, nil // Success!
 		}
 
-		lastError = err
+		lastError = err.Error()
+		lastDockerfile = df
 	}
 
-	return "", fmt.Errorf("failed after %d attempts: %v", maxRetries, lastError)
+	return "", fmt.Errorf("failed after %d attempts: %s", maxRetries, lastError)
 }

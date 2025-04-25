@@ -1,3 +1,5 @@
+//go:build integration
+
 package e2e
 
 import (
@@ -7,12 +9,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aliou/dockerfile-gen/internal/loop"
 )
 
-func TestE2E_SpringBoot(t *testing.T) {
-	// Skip if running in CI without E2E flag
+// TestIntegration_SpringBoot tests the full pipeline with a Spring Boot project
+func TestIntegration_SpringBoot(t *testing.T) {
+	// Skip if running without E2E flag
 	if os.Getenv("DG_E2E") == "" {
 		t.Skip("Skipping E2E test; set DG_E2E=1 to run")
 	}
@@ -21,6 +25,21 @@ func TestE2E_SpringBoot(t *testing.T) {
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("docker not available")
 	}
+
+	// Skip if OpenAI key not set
+	if os.Getenv("OPENAI_API_KEY") == "" {
+		t.Skip("OPENAI_API_KEY not set")
+	}
+
+	// Set build timeout from env or default
+	timeout := 20 * time.Minute
+	if val := os.Getenv("GO_BUILD_TIMEOUT"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			timeout = d
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	// Get the Spring Boot test project
 	testDir := filepath.Join("testdata", "springboot")
@@ -31,7 +50,7 @@ func TestE2E_SpringBoot(t *testing.T) {
 	// Run through the loop package directly
 	t.Run("via loop package", func(t *testing.T) {
 		fsys := os.DirFS(testDir)
-		dockerfile, err := loop.Run(context.Background(), fsys)
+		dockerfile, err := loop.Run(ctx, fsys)
 		if err != nil {
 			t.Fatalf("loop.Run failed: %v", err)
 		}
@@ -47,6 +66,9 @@ func TestE2E_SpringBoot(t *testing.T) {
 
 		// Run the CLI
 		cmd := exec.Command(cliPath, testDir)
+		cmd.Env = append(os.Environ(),
+			"GO_BUILD_TIMEOUT="+timeout.String(),
+			"DG_E2E=1")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("CLI failed: %v\nOutput: %s", err, output)
@@ -67,7 +89,7 @@ func buildCLI(t *testing.T) string {
 	tmpfile.Close()
 
 	// Build the CLI
-	cmd := exec.Command("go", "build", "-o", tmpfile.Name(), "../../cmd/dockergen")
+	cmd := exec.Command("go", "build", "-tags=integration", "-o", tmpfile.Name(), "../../cmd/dockergen")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("failed to build CLI: %v\nOutput: %s", err, output)
 	}

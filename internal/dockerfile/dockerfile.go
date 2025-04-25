@@ -3,39 +3,40 @@ package dockerfile
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/aliou/dockerfile-gen/internal/facts"
+	"github.com/sashabaranov/go-openai"
 )
 
 // Generate creates a Dockerfile based on the provided facts
-func Generate(ctx context.Context, facts facts.Facts) (string, error) {
+func Generate(ctx context.Context, facts facts.Facts, lastDockerfile string, lastError string) (string, error) {
 	// Build the prompt for Dockerfile generation
-	prompt := buildDockerfilePrompt(facts, "", "")
+	prompt := buildDockerfilePrompt(facts, lastDockerfile, lastError)
 
-	// For now, return a basic Dockerfile template
-	// This will be replaced with actual LLM call later
-	dockerfile := fmt.Sprintf(`FROM %s AS builder
-WORKDIR /app
-COPY . .
-RUN %s
+	// Initialize OpenAI client
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		return "", fmt.Errorf("OPENAI_API_KEY is required")
+	}
+	client := openai.NewClient(apiKey)
 
-FROM %s
-WORKDIR /app
-COPY --from=builder /app/%s .
-EXPOSE %d
-HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:%d%s || exit 1
-CMD %s`, 
-		facts.BaseImage, 
-		facts.BuildCmd,
-		facts.BaseImage,
-		facts.Artifact,
-		facts.Ports[0],
-		facts.Ports[0],
-		facts.Health,
-		facts.StartCmd)
+	// Call OpenAI to generate Dockerfile
+	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: openai.GPT4,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: prompt,
+			},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("openai call failed: %w", err)
+	}
 
-	return strings.TrimSpace(dockerfile), nil
+	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
 }
 
 // buildDockerfilePrompt creates the prompt for Dockerfile generation

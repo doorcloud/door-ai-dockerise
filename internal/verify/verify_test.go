@@ -13,18 +13,30 @@ func TestVerify(t *testing.T) {
 		t.Skip("docker not available")
 	}
 
-	// Create a test filesystem
+	// Create test filesystem with go.mod
 	fsys := fstest.MapFS{
+		"go.mod": &fstest.MapFile{
+			Data: []byte(`module test
+go 1.21
+
+require (
+	github.com/example/pkg v1.0.0
+)
+`),
+		},
 		"main.go": &fstest.MapFile{
 			Data: []byte(`package main
 
+import "fmt"
+
 func main() {
-	println("Hello, World!")
-}`),
+	fmt.Println("Hello, World!")
+}
+`),
 		},
 	}
 
-	// Test a valid Dockerfile
+	// Test Dockerfile
 	dockerfile := `FROM golang:1.21-alpine
 WORKDIR /app
 COPY . .
@@ -33,7 +45,7 @@ CMD ["./app"]`
 
 	err := Verify(context.Background(), fsys, dockerfile)
 	if err != nil {
-		t.Errorf("Verify failed: %v", err)
+		t.Errorf("Verify() error = %v", err)
 	}
 
 	// Test an invalid Dockerfile

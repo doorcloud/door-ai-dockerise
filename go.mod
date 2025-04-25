@@ -4,7 +4,10 @@ go 1.23.0
 
 toolchain go1.24.1
 
-require github.com/docker/docker v25.0.3+incompatible
+require (
+	github.com/docker/docker v25.0.3+incompatible
+	github.com/sashabaranov/go-openai v1.38.2
+)
 
 require github.com/distribution/reference v0.6.0 // indirect
 

@@ -2,13 +2,21 @@ package facts
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 
 	"github.com/aliou/dockerfile-gen/internal/detect"
+	"github.com/sashabaranov/go-openai"
 )
+
+// OpenAIClient defines the interface for OpenAI API calls
+type OpenAIClient interface {
+	CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
+}
 
 // Facts represents the detected facts about a technology stack
 type Facts struct {
@@ -27,6 +35,18 @@ type Facts struct {
 
 // Infer analyzes the filesystem and returns facts about the project
 func Infer(ctx context.Context, fsys fs.FS, rule detect.Rule) (Facts, error) {
+	// Initialize OpenAI client
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		return Facts{}, fmt.Errorf("OPENAI_API_KEY is required")
+	}
+	client := openai.NewClient(apiKey)
+
+	return InferWithClient(ctx, fsys, rule, client)
+}
+
+// InferWithClient analyzes the project using the provided OpenAI client
+func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.Rule, client OpenAIClient) (Facts, error) {
 	// Get relevant snippets
 	snippets, err := getSnippets(fsys)
 	if err != nil {
@@ -36,19 +56,24 @@ func Infer(ctx context.Context, fsys fs.FS, rule detect.Rule) (Facts, error) {
 	// Build facts prompt
 	prompt := buildFactsPrompt(snippets)
 
-	// Call LLM to analyze facts (placeholder for now)
-	facts := Facts{
-		Language:  "java",
-		Framework: "spring-boot",
-		BuildTool: "maven",
-		BuildCmd:  "./mvnw -q package -DskipTests",
-		BuildDir:  ".",
-		StartCmd:  "java -jar target/*.jar",
-		Artifact:  "target/*.jar",
-		Ports:     []int{8080},
-		Health:    "/actuator/health",
-		BaseImage: "eclipse-temurin:17-jdk",
-		Env:       map[string]string{},
+	// Call OpenAI to analyze facts
+	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: openai.GPT4,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: prompt,
+			},
+		},
+	})
+	if err != nil {
+		return Facts{}, fmt.Errorf("openai call failed: %w", err)
+	}
+
+	// Parse response as JSON
+	var facts Facts
+	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &facts); err != nil {
+		return Facts{}, fmt.Errorf("parse facts json: %w", err)
 	}
 
 	return facts, nil

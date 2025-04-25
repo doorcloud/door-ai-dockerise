@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -16,6 +17,10 @@ import (
 
 // Verify builds the Dockerfile in a temporary directory and returns the result
 func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
 	// Create a temporary directory for the build
 	dir, err := os.MkdirTemp("", "dockergen-*")
 	if err != nil {
@@ -129,7 +134,7 @@ func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
 		}
 	}()
 
-	// Build the image
+	// Build the image with timeout context
 	resp, err := cli.ImageBuild(ctx, pr, types.ImageBuildOptions{
 		Dockerfile: "Dockerfile",
 		Remove:     true,
@@ -139,18 +144,28 @@ func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
 	}
 	defer resp.Body.Close()
 
-	// Read build output
-	var logs strings.Builder
-	if _, err := io.Copy(&logs, resp.Body); err != nil {
-		return fmt.Errorf("read build output: %w", err)
-	}
+	// Read build output with timeout
+	done := make(chan error)
+	go func() {
+		var logs strings.Builder
+		_, err := io.Copy(&logs, resp.Body)
+		if err != nil {
+			done <- fmt.Errorf("read build output: %w", err)
+			return
+		}
+		if !strings.Contains(logs.String(), "Successfully built") {
+			done <- fmt.Errorf("build failed: %s", logs.String())
+			return
+		}
+		done <- nil
+	}()
 
-	// Check if build was successful
-	if !strings.Contains(logs.String(), "Successfully built") {
-		return fmt.Errorf("build failed: %s", logs.String())
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("build timeout: %w", ctx.Err())
 	}
-
-	return nil
 }
 
 // createDockerignore creates a .dockerignore file in the build context directory

@@ -2,11 +2,34 @@ package facts
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"testing/fstest"
 
 	"github.com/aliou/dockerfile-gen/internal/detect"
+	"github.com/sashabaranov/go-openai"
 )
+
+// mockOpenAIClient implements OpenAIClient interface for testing
+type mockOpenAIClient struct {
+	response string
+	err      error
+}
+
+func (m *mockOpenAIClient) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+	if m.err != nil {
+		return openai.ChatCompletionResponse{}, m.err
+	}
+	return openai.ChatCompletionResponse{
+		Choices: []openai.ChatCompletionChoice{
+			{
+				Message: openai.ChatCompletionMessage{
+					Content: m.response,
+				},
+			},
+		},
+	}, nil
+}
 
 func TestInfer(t *testing.T) {
 	// Create test filesystem
@@ -14,56 +37,78 @@ func TestInfer(t *testing.T) {
 		"pom.xml": &fstest.MapFile{
 			Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <project>
-    <groupId>org.springframework.samples</groupId>
-    <artifactId>spring-petclinic</artifactId>
-    <version>3.2.0-SNAPSHOT</version>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.7.0</version>
+    </parent>
 </project>`),
 		},
-		"src/main/java/org/springframework/samples/petclinic/PetClinicApplication.java": &fstest.MapFile{
-			Data: []byte(`
-package org.springframework.samples.petclinic;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-@SpringBootApplication
-public class PetClinicApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(PetClinicApplication.class, args);
-    }
-}`),
+		"mvnw": &fstest.MapFile{
+			Data: []byte("#!/bin/sh"),
+		},
+		".mvn/wrapper/maven-wrapper.jar": &fstest.MapFile{
+			Data: []byte("mock jar"),
 		},
 	}
 
-	// Create test rule
+	// Set up mock client
+	mockClient := &mockOpenAIClient{
+		response: `{
+			"language": "java",
+			"framework": "spring-boot",
+			"buildTool": "maven",
+			"buildCmd": "./mvnw -q package",
+			"startCmd": "java -jar target/*.jar",
+			"ports": [8080],
+			"health": "/actuator/health",
+			"baseImage": "eclipse-temurin:17-jdk"
+		}`,
+	}
+
+	// Test inference with mock client
 	rule := detect.Rule{
 		Name: "spring-boot",
 		Tool: "maven",
 	}
 
-	// Test fact inference
-	facts, err := Infer(context.Background(), fsys, rule)
+	facts, err := InferWithClient(context.Background(), fsys, rule, mockClient)
 	if err != nil {
 		t.Fatalf("Infer() error = %v", err)
 	}
 
-	// Verify expected facts
+	// Verify inferred facts
 	if facts.Language != "java" {
-		t.Errorf("expected language java, got %s", facts.Language)
+		t.Errorf("Language = %v, want java", facts.Language)
 	}
 	if facts.Framework != "spring-boot" {
-		t.Errorf("expected framework spring-boot, got %s", facts.Framework)
+		t.Errorf("Framework = %v, want spring-boot", facts.Framework)
 	}
 	if facts.BuildTool != "maven" {
-		t.Errorf("expected build tool maven, got %s", facts.BuildTool)
+		t.Errorf("BuildTool = %v, want maven", facts.BuildTool)
 	}
-	if facts.BuildCmd != "./mvnw -q package -DskipTests" {
-		t.Errorf("unexpected build command: %s", facts.BuildCmd)
+	if facts.BuildCmd != "./mvnw -q package" {
+		t.Errorf("BuildCmd = %v, want ./mvnw -q package", facts.BuildCmd)
 	}
 	if facts.StartCmd != "java -jar target/*.jar" {
-		t.Errorf("unexpected start command: %s", facts.StartCmd)
+		t.Errorf("StartCmd = %v, want java -jar target/*.jar", facts.StartCmd)
+	}
+	if len(facts.Ports) != 1 || facts.Ports[0] != 8080 {
+		t.Errorf("Ports = %v, want [8080]", facts.Ports)
 	}
 	if facts.Health != "/actuator/health" {
-		t.Errorf("unexpected health endpoint: %s", facts.Health)
+		t.Errorf("Health = %v, want /actuator/health", facts.Health)
 	}
+	if facts.BaseImage != "eclipse-temurin:17-jdk" {
+		t.Errorf("BaseImage = %v, want eclipse-temurin:17-jdk", facts.BaseImage)
+	}
+
+	// Test error case
+	t.Run("openai error", func(t *testing.T) {
+		mockClient.err = fmt.Errorf("mock error")
+		_, err := InferWithClient(context.Background(), fsys, rule, mockClient)
+		if err == nil {
+			t.Error("Infer() expected error, got nil")
+		}
+	})
 }
