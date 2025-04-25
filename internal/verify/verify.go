@@ -17,8 +17,16 @@ import (
 
 // Verify builds the Dockerfile in a temporary directory and returns the result
 func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
+	// Get timeout from environment or use default
+	timeout := 5 * time.Minute
+	if val := os.Getenv("DG_BUILD_TIMEOUT"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			timeout = d
+		}
+	}
+
 	// Create a context with timeout
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Create a temporary directory for the build
