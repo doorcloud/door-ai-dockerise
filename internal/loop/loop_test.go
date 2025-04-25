@@ -48,6 +48,13 @@ func TestRun(t *testing.T) {
 		"pom.xml": &fstest.MapFile{
 			Data: []byte(`<project></project>`),
 		},
+		"mvnw": &fstest.MapFile{
+			Data: []byte(`#!/bin/sh`),
+			Mode: 0755,
+		},
+		".mvn/wrapper/maven-wrapper.properties": &fstest.MapFile{
+			Data: []byte(`distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.8.4/apache-maven-3.8.4-bin.zip`),
+		},
 	}
 
 	client := &llm.MockClient{}
