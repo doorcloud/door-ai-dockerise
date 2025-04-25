@@ -1,61 +1,50 @@
 package rules
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
+	"io/fs"
 )
 
-// springBootRule implements Rule for Spring Boot projects
-type springBootRule struct{}
+// SpringBoot implements the Rule interface for Spring Boot projects
+type SpringBoot struct{}
 
-func init() {
-	Register(&springBootRule{})
-}
-
-func (r *springBootRule) Name() string {
+func (s *SpringBoot) Name() string {
 	return "spring-boot"
 }
 
-func (r *springBootRule) Detect(repo string) bool {
-	// Check for Maven
-	if _, err := os.Stat(filepath.Join(repo, "pom.xml")); err == nil {
-		return true
+func (s *SpringBoot) Detect(fsys fs.FS) bool {
+	// Check for pom.xml
+	if _, err := fs.Stat(fsys, "pom.xml"); err != nil {
+		return false
 	}
 
-	// Check for Gradle
-	if _, err := os.Stat(filepath.Join(repo, "gradlew")); err == nil {
-		return true
+	// Check for spring-boot dependency in pom.xml
+	pomContent, err := fs.ReadFile(fsys, "pom.xml")
+	if err != nil {
+		return false
 	}
 
-	// Check for Spring Boot application class
-	return r.hasSpringBootApp(repo)
+	// Simple check for spring-boot dependency
+	return containsSpringBootDependency(string(pomContent))
 }
 
-func (r *springBootRule) Facts(repo string) map[string]any {
-	return map[string]any{
-		"framework": "Spring Boot",
-		"language":  "Java",
-	}
+func containsSpringBootDependency(pomContent string) bool {
+	// This is a simple check - in a real implementation, you'd want to parse the XML properly
+	return containsAll(pomContent, "spring-boot", "starter")
 }
 
-func (r *springBootRule) hasSpringBootApp(repo string) bool {
-	var found bool
-	filepath.Walk(repo, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".java") {
-			return nil
+func containsAll(s string, substrings ...string) bool {
+	for _, substr := range substrings {
+		if !contains(s, substr) {
+			return false
 		}
+	}
+	return true
+}
 
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && s[0:len(substr)] == substr
+}
 
-		if strings.Contains(string(content), "@SpringBootApplication") {
-			found = true
-			return filepath.SkipDir
-		}
-		return nil
-	})
-	return found
+func init() {
+	Register(&SpringBoot{})
 }

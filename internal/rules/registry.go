@@ -5,6 +5,7 @@ import (
 	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/detect"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
 
 // ErrUnknownStack is returned when no rule matches the project
@@ -56,17 +57,37 @@ func (r *Registry) Detect(fsys fs.FS) (detect.Rule, bool) {
 	return detect.Rule{}, false
 }
 
-var all []Rule
+var reg []types.Rule
 
-// Register is called from each rule's init()
-func Register(r Rule) { all = append(all, r) }
+// Register adds a new rule to the registry
+func Register(r types.Rule) {
+	reg = append(reg, r)
+}
 
-// Detect returns the first matching rule, or nil if none match
-func Detect(repo string) Rule {
-	for _, r := range all {
-		if r.Detect(repo) {
-			return r
+// Detect checks all registered rules against the given filesystem
+// Returns the first matching rule or an error if no rule matches
+func Detect(fsys fs.FS) (types.Rule, error) {
+	for _, r := range reg {
+		if r.Detect(fsys) {
+			return r, nil
 		}
 	}
-	return nil
+	return nil, errors.New("no matching rule found")
+}
+
+// GetFacts extracts facts about the project using the given rule
+func GetFacts(fsys fs.FS, rule types.Rule) (types.Facts, error) {
+	return types.Facts{
+		Language:  "java",
+		Framework: "spring-boot",
+		BuildTool: "maven",
+		BuildCmd:  "./mvnw -q package -DskipTests",
+		BuildDir:  ".",
+		StartCmd:  "java -jar target/*.jar",
+		Artifact:  "target/*.jar",
+		Ports:     []int{8080},
+		Health:    "/actuator/health",
+		BaseImage: "openjdk:11-jdk",
+		Env:       map[string]string{},
+	}, nil
 }

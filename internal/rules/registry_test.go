@@ -1,19 +1,61 @@
 package rules
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/detect"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
+
+// fakeRule1 is a test rule that always matches
+type fakeRule1 struct{}
+
+func (r *fakeRule1) Name() string           { return "fake1" }
+func (r *fakeRule1) Detect(fsys fs.FS) bool { return true }
+
+// fakeRule2 is a test rule that never matches
+type fakeRule2 struct{}
+
+func (r *fakeRule2) Name() string           { return "fake2" }
+func (r *fakeRule2) Detect(fsys fs.FS) bool { return false }
+
+func init() {
+	Register(&fakeRule1{})
+	Register(&fakeRule2{})
+}
+
+func TestDetect(t *testing.T) {
+	fsys := fstest.MapFS{}
+
+	// Should return fakeRule1 since it's the first matching rule
+	rule, err := Detect(fsys)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if rule.Name() != "fake1" {
+		t.Errorf("Detect() = %v, want fake1", rule.Name())
+	}
+}
+
+func TestDetect_NoMatch(t *testing.T) {
+	// Clear the registry
+	reg = nil
+
+	fsys := fstest.MapFS{}
+	_, err := Detect(fsys)
+	if err == nil {
+		t.Error("Detect() error = nil, want error")
+	}
+}
 
 func TestDetectStack(t *testing.T) {
 	tests := []struct {
 		name     string
 		files    map[string]string
-		wantRule *detect.Rule
+		wantRule *types.Rule
 		wantErr  error
 	}{
 		{
@@ -21,7 +63,7 @@ func TestDetectStack(t *testing.T) {
 			files: map[string]string{
 				"pom.xml": "<project></project>",
 			},
-			wantRule: &detect.Rule{
+			wantRule: &types.Rule{
 				Name: "spring-boot",
 				Tool: "maven",
 			},
@@ -32,7 +74,7 @@ func TestDetectStack(t *testing.T) {
 			files: map[string]string{
 				"gradlew": "#!/bin/sh",
 			},
-			wantRule: &detect.Rule{
+			wantRule: &types.Rule{
 				Name: "spring-boot",
 				Tool: "gradle",
 			},

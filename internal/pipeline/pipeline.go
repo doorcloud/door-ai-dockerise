@@ -9,28 +9,22 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/internal/dockerfile"
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 	"github.com/doorcloud/door-ai-dockerise/internal/rules"
-	"github.com/doorcloud/door-ai-dockerise/internal/types"
 	"github.com/doorcloud/door-ai-dockerise/internal/verify"
 )
 
 // Run executes the full pipeline
 func Run(repoPath string, client llm.Client) error {
 	// Detect project type
-	rule := rules.Detect(repoPath)
-	if rule == nil {
-		return fmt.Errorf("no rule matched")
+	fsys := os.DirFS(repoPath)
+	rule, err := rules.Detect(fsys)
+	if err != nil {
+		return fmt.Errorf("no rule matched: %v", err)
 	}
 
 	// Extract facts
-	factsMap := rule.Facts(repoPath)
-	if factsMap == nil {
-		return fmt.Errorf("failed to extract facts")
-	}
-
-	// Convert facts to types.Facts
-	facts := types.Facts{
-		Language:  factsMap["language"].(string),
-		Framework: factsMap["framework"].(string),
+	facts, err := rules.GetFacts(fsys, rule)
+	if err != nil {
+		return fmt.Errorf("failed to extract facts: %v", err)
 	}
 
 	// Generate Dockerfile
@@ -46,7 +40,6 @@ func Run(repoPath string, client llm.Client) error {
 	}
 
 	// Verify Dockerfile
-	fsys := os.DirFS(repoPath)
 	if err := verify.Verify(context.Background(), fsys, df); err != nil {
 		return fmt.Errorf("failed to verify Dockerfile: %v", err)
 	}

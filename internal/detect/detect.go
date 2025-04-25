@@ -2,6 +2,9 @@ package detect
 
 import (
 	"io/fs"
+	"os"
+
+	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 )
 
 // Rule represents a technology stack detection rule
@@ -40,4 +43,14 @@ func Detect(path fs.FS) (Rule, error) {
 	}
 
 	return Rule{}, nil
+}
+
+// DetectStack analyzes the given directory and returns the detected technology stack
+func DetectStack(dir string) (string, error) {
+	fsys := os.DirFS(dir)
+	rule, err := rules.Detect(fsys)
+	if err != nil {
+		return "", err
+	}
+	return rule.Name(), nil
 }
