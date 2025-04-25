@@ -49,6 +49,16 @@ func Detect(fsys fs.FS) (RuleInfo, error) {
 		}, nil
 	}
 
+	// Generic Node.js detection (npm / yarn)
+	if _, err := fs.Stat(fsys, "package.json"); err == nil {
+		if _, yarn := fs.Stat(fsys, "yarn.lock"); yarn == nil {
+			return RuleInfo{Name: "node", Tool: "yarn"}, nil
+		}
+		if _, npm := fs.Stat(fsys, "package-lock.json"); npm == nil {
+			return RuleInfo{Name: "node", Tool: "npm"}, nil
+		}
+	}
+
 	return RuleInfo{}, ErrUnknownStack
 }
 
