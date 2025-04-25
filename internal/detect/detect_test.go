@@ -52,6 +52,14 @@ func TestDetect(t *testing.T) {
 				Tool: "pnpm",
 			},
 		},
+		{
+			name:  "react with npm",
+			files: []string{"package.json", "src/index.js"},
+			expected: RuleInfo{
+				Name: "react",
+				Tool: "npm",
+			},
+		},
 	}
 
 	for _, tt := range tests {

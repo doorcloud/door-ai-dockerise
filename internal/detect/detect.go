@@ -59,6 +59,22 @@ func Detect(fsys fs.FS) (RuleInfo, error) {
 		}
 	}
 
+	// Check for React projects
+	if _, err := fs.Stat(fsys, "package.json"); err == nil {
+		if _, err := fs.Stat(fsys, "src/index.js"); err == nil {
+			return RuleInfo{
+				Name: "react",
+				Tool: "npm",
+			}, nil
+		}
+		if _, err := fs.Stat(fsys, "src/index.tsx"); err == nil {
+			return RuleInfo{
+				Name: "react",
+				Tool: "npm",
+			}, nil
+		}
+	}
+
 	return RuleInfo{}, ErrUnknownStack
 }
 
