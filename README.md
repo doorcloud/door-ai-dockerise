@@ -73,6 +73,10 @@ The following environment variables can be used to enable various debug features
 
 These can be set in your `.env` file or directly in the shell before running commands.
 
+## Supported Stacks
+
+Currently: Spring Boot (more coming, contributions welcome!)
+
 ## Usage
 
 [Add specific usage instructions here]

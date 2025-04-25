@@ -1,10 +1,28 @@
 package rules
 
 import (
+	"errors"
 	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/detect"
 )
+
+// ErrUnknownStack is returned when no rule matches the project
+var ErrUnknownStack = errors.New("unknown technology stack")
+
+// DetectStack tries to detect the technology stack in the given repository
+func DetectStack(fsys fs.FS) (*detect.Rule, error) {
+	// Create detector
+	detector := &detect.SpringDetector{}
+
+	// Run detection
+	rule, ok := detector.Detect(fsys)
+	if !ok {
+		return nil, ErrUnknownStack
+	}
+
+	return &rule, nil
+}
 
 // Detector defines the interface for project type detection
 type Detector interface {

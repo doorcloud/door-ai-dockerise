@@ -1,20 +1,18 @@
-package springboot
+package detect
 
 import (
 	"io/fs"
-
-	"github.com/doorcloud/door-ai-dockerise/internal/detect"
 )
 
-// Detector implements detection for Spring Boot projects
-type Detector struct{}
+// SpringDetector implements detection for Spring Boot projects
+type SpringDetector struct{}
 
 // Detect checks for Spring Boot project markers
-func (d *Detector) Detect(fsys fs.FS) (detect.Rule, bool) {
+func (d *SpringDetector) Detect(fsys fs.FS) (Rule, bool) {
 	// Check for Maven
 	exists, err := fs.Stat(fsys, "pom.xml")
 	if err == nil && !exists.IsDir() {
-		return detect.Rule{
+		return Rule{
 			Name: "spring-boot",
 			Tool: "maven",
 		}, true
@@ -23,11 +21,11 @@ func (d *Detector) Detect(fsys fs.FS) (detect.Rule, bool) {
 	// Check for Gradle
 	exists, err = fs.Stat(fsys, "gradlew")
 	if err == nil && !exists.IsDir() {
-		return detect.Rule{
+		return Rule{
 			Name: "spring-boot",
 			Tool: "gradle",
 		}, true
 	}
 
-	return detect.Rule{}, false
+	return Rule{}, false
 }

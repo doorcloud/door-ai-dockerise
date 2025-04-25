@@ -1,21 +1,16 @@
-package springboot
+package rules
 
 import (
 	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/detect"
-	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 )
 
-// Detector implements rules.Detector for Spring Boot projects
-type Detector struct{}
-
-func init() {
-	rules.NewRegistry().Register(&Detector{})
-}
+// springDetector implements Detector for Spring Boot projects
+type springDetector struct{}
 
 // Detect checks for Spring Boot project markers
-func (d *Detector) Detect(fsys fs.FS) (detect.Rule, bool) {
+func (d *springDetector) Detect(fsys fs.FS) (detect.Rule, bool) {
 	// Check for Maven
 	exists, err := fs.Stat(fsys, "pom.xml")
 	if err == nil && !exists.IsDir() {

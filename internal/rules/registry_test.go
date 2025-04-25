@@ -5,43 +5,42 @@ import (
 	"testing/fstest"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/detect"
-	"github.com/doorcloud/door-ai-dockerise/internal/detect/springboot"
 )
 
-func TestRegistry_Detect(t *testing.T) {
+func TestDetectStack(t *testing.T) {
 	tests := []struct {
 		name     string
 		files    map[string]string
-		wantRule detect.Rule
-		wantOk   bool
+		wantRule *detect.Rule
+		wantErr  error
 	}{
 		{
 			name: "spring boot maven",
 			files: map[string]string{
 				"pom.xml": "<project></project>",
 			},
-			wantRule: detect.Rule{
+			wantRule: &detect.Rule{
 				Name: "spring-boot",
 				Tool: "maven",
 			},
-			wantOk: true,
+			wantErr: nil,
 		},
 		{
 			name: "spring boot gradle",
 			files: map[string]string{
 				"gradlew": "#!/bin/sh",
 			},
-			wantRule: detect.Rule{
+			wantRule: &detect.Rule{
 				Name: "spring-boot",
 				Tool: "gradle",
 			},
-			wantOk: true,
+			wantErr: nil,
 		},
 		{
 			name:     "no match",
 			files:    map[string]string{},
-			wantRule: detect.Rule{},
-			wantOk:   false,
+			wantRule: nil,
+			wantErr:  ErrUnknownStack,
 		},
 	}
 
@@ -54,14 +53,12 @@ func TestRegistry_Detect(t *testing.T) {
 			}
 
 			// Run detection
-			reg := NewRegistry()
-			reg.Register(&springboot.Detector{})
-			gotRule, gotOk := reg.Detect(fsys)
-			if gotOk != tt.wantOk {
-				t.Errorf("Registry.Detect() ok = %v, want %v", gotOk, tt.wantOk)
+			gotRule, gotErr := DetectStack(fsys)
+			if gotErr != tt.wantErr {
+				t.Errorf("DetectStack() error = %v, want %v", gotErr, tt.wantErr)
 			}
-			if gotRule != tt.wantRule {
-				t.Errorf("Registry.Detect() rule = %v, want %v", gotRule, tt.wantRule)
+			if tt.wantRule != nil && *gotRule != *tt.wantRule {
+				t.Errorf("DetectStack() rule = %v, want %v", gotRule, tt.wantRule)
 			}
 		})
 	}

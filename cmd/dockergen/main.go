@@ -30,16 +30,15 @@ func main() {
 	// Get filesystem
 	fsys := os.DirFS(os.Args[1])
 
-	// Detect project type using registry
-	reg := rules.NewRegistry()
-	rule, ok := reg.Detect(fsys)
-	if !ok {
-		fmt.Fprintln(os.Stderr, "No matching rule found")
+	// Detect project type
+	rule, err := rules.DetectStack(fsys)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error detecting stack: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Infer facts about the project
-	projectFacts, err := facts.InferWithClient(context.Background(), fsys, rule, client)
+	projectFacts, err := facts.InferWithClient(context.Background(), fsys, *rule, client)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error inferring facts: %v\n", err)
 		os.Exit(1)

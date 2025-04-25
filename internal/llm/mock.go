@@ -1,19 +1,43 @@
 package llm
 
-import "context"
+import (
+	"crypto/sha1"
+	"encoding/json"
+	"fmt"
+	"os"
+)
 
-// Mock implements Client interface for testing
-type Mock struct {
-	FactsJSON  string
-	Dockerfile string
-}
+// mockClient implements the Client interface using local fixtures
+type mockClient struct{}
 
-// Chat implements Client.Chat by returning canned responses
-func (m *Mock) Chat(_ context.Context, _ string) (string, error) {
-	if m.FactsJSON != "" {
-		out := m.FactsJSON
-		m.FactsJSON = "" // next call returns Dockerfile
-		return out, nil
+func (c *mockClient) Chat(model, prompt string) (string, error) {
+	// Compute hash of the prompt
+	hash := fmt.Sprintf("%x", sha1.Sum([]byte(prompt)))
+
+	// Determine which fixture file to use based on the prompt content
+	var fixtureFile string
+	if model == "facts" {
+		fixtureFile = "testdata/mocks/facts.json"
+	} else {
+		fixtureFile = "testdata/mocks/dockerfile.json"
 	}
-	return m.Dockerfile, nil
+
+	// Read and parse the fixture file
+	data, err := os.ReadFile(fixtureFile)
+	if err != nil {
+		return "", fmt.Errorf("mock LLM: failed to read fixture file: %v", err)
+	}
+
+	var fixtures map[string]string
+	if err := json.Unmarshal(data, &fixtures); err != nil {
+		return "", fmt.Errorf("mock LLM: failed to parse fixture file: %v", err)
+	}
+
+	// Look up the response
+	response, exists := fixtures[hash]
+	if !exists {
+		return "", fmt.Errorf("mock LLM: fixture missing for %s; add it to %s", hash, fixtureFile)
+	}
+
+	return response, nil
 }
