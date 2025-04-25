@@ -13,9 +13,9 @@ func (d *Detector) Name() string {
 	return "react"
 }
 
-func (d *Detector) Detect(repo string) bool {
+func (d *Detector) Detect(dir string) bool {
 	// Check for package.json
-	pkgPath := filepath.Join(repo, "package.json")
+	pkgPath := filepath.Join(dir, "package.json")
 	data, err := os.ReadFile(pkgPath)
 	if err != nil {
 		return false
@@ -34,11 +34,11 @@ func (d *Detector) Detect(repo string) bool {
 	}
 
 	// Check for src/index.js or src/index.tsx
-	return fileExists(filepath.Join(repo, "src", "index.js")) ||
-		fileExists(filepath.Join(repo, "src", "index.tsx"))
+	return fileExists(filepath.Join(dir, "src", "index.js")) ||
+		fileExists(filepath.Join(dir, "src", "index.tsx"))
 }
 
-func (d *Detector) Facts(repo string) map[string]any {
+func (d *Detector) Facts(dir string) map[string]any {
 	return map[string]any{
 		"language":  "JavaScript",
 		"framework": "React",
