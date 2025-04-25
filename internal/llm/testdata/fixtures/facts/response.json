@@ -2,7 +2,7 @@
   "choices": [
     {
       "message": {
-        "content": "{\"language\":\"java\",\"framework\":\"spring-boot\",\"build_tool\":\"maven\",\"build_cmd\":\"./mvnw -q package -DskipTests\",\"build_dir\":\".\",\"start_cmd\":\"java -jar target/*.jar\",\"artifact\":\"target/*.jar\",\"ports\":[8080],\"health\":\"/actuator/health\",\"env\":{},\"base_image\":\"openjdk:11-jdk\"}"
+        "content": "{\"language\":\"javascript\",\"framework\":\"react\",\"build_tool\":\"npm\",\"build_cmd\":\"npm run build\",\"build_dir\":\"dist\",\"start_cmd\":\"npm start\",\"artifact\":\"dist\",\"ports\":[5173],\"health\":\"/\",\"base_image\":\"node:18-alpine\",\"env\":{}}"
       }
     }
   ]

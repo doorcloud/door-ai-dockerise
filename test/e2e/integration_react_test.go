@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -19,17 +18,12 @@ func TestReactIntegration(t *testing.T) {
 
 	// Clone Vite React example
 	dir := t.TempDir()
-	err := runCommand(dir, "git", "clone", "--depth=1", "https://github.com/vitejs/vite.git", ".")
-	assert.NoError(t, err)
-
-	// Change to the React example directory
-	exampleDir := filepath.Join(dir, "examples/react")
-	err = os.Chdir(exampleDir)
+	err := runCommand(dir, "git", "clone", "--depth=1", "https://github.com/yunsii/vite-react.git", ".")
 	assert.NoError(t, err)
 
 	// Run the Dockerfile generation loop
 	ctx := context.Background()
-	fsys := os.DirFS(exampleDir)
+	fsys := os.DirFS(dir)
 	client := newTestClient(t)
 
 	dockerfile, err := loop.Run(ctx, fsys, client)
@@ -37,7 +31,7 @@ func TestReactIntegration(t *testing.T) {
 	assert.NotEmpty(t, dockerfile)
 
 	// Build and run the container
-	containerID, err := buildAndRun(t, exampleDir, dockerfile, []string{"80:80"})
+	containerID, err := buildAndRun(t, dir, dockerfile, []string{"80:80"})
 	assert.NoError(t, err)
 	defer cleanupContainer(t, containerID)
 
