@@ -52,7 +52,7 @@ public class PetClinicApplication {
 			"language": "java",
 			"framework": "spring-boot",
 			"build_tool": "maven",
-			"build_cmd": "./mvnw -q package",
+			"build_cmd": "./mvnw -q package -DskipTests",
 			"build_dir": ".",
 			"start_cmd": "java -jar target/*.jar",
 			"artifact": "target/*.jar",
@@ -66,7 +66,7 @@ WORKDIR /app
 COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
-RUN ./mvnw -q package
+RUN chmod +x ./mvnw && ./mvnw -q package -DskipTests
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD curl -f http://localhost:8080/actuator/health || exit 1
@@ -99,7 +99,7 @@ CMD ["java", "-jar", "target/*.jar"]`,
 	// Verify Spring Boot specific elements
 	springBootElements := []string{
 		"openjdk:11-jdk",
-		"./mvnw -q package",
+		"./mvnw -q package -DskipTests",
 		"target/*.jar",
 		"8080",
 		"/actuator/health",

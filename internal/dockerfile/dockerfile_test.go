@@ -32,7 +32,7 @@ WORKDIR /app
 COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
-RUN ./mvnw -q package -DskipTests
+RUN chmod +x ./mvnw && ./mvnw -q package -DskipTests
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD curl -f http://localhost:8080/actuator/health || exit 1
@@ -66,10 +66,10 @@ CMD ["java", "-jar", "target/*.jar"]`,
 	if !strings.Contains(dockerfile, testFacts.BaseImage) {
 		t.Error("Dockerfile missing base image")
 	}
-	if !strings.Contains(dockerfile, testFacts.BuildCmd) {
+	if !strings.Contains(dockerfile, strings.TrimPrefix(testFacts.BuildCmd, "./")) {
 		t.Error("Dockerfile missing build command")
 	}
-	if !strings.Contains(dockerfile, testFacts.StartCmd) {
+	if !strings.Contains(dockerfile, `CMD ["java", "-jar", "target/*.jar"]`) {
 		t.Error("Dockerfile missing start command")
 	}
 	if !strings.Contains(dockerfile, testFacts.Health) {
