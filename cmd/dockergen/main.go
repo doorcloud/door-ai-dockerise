@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/detect"
 	"github.com/doorcloud/door-ai-dockerise/internal/facts"
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 	"github.com/doorcloud/door-ai-dockerise/internal/types"
 	"github.com/doorcloud/door-ai-dockerise/internal/verify"
 )
@@ -29,10 +29,11 @@ func main() {
 	// Get filesystem
 	fsys := os.DirFS(os.Args[1])
 
-	// Detect project type
-	rule, err := detect.Detect(fsys)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error detecting project type: %v\n", err)
+	// Detect project type using registry
+	reg := rules.NewRegistry()
+	rule, ok := reg.Detect(fsys)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "No matching rule found")
 		os.Exit(1)
 	}
 
