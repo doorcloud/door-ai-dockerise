@@ -8,4 +8,6 @@ type Rule interface {
 	Name() string
 	// Detect checks if the given filesystem contains a project matching this rule
 	Detect(fsys fs.FS) bool
+	// Facts returns information about the project
+	Facts(fsys fs.FS) map[string]any
 }

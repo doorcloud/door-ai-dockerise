@@ -1,98 +1,110 @@
 package springboot
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
-	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSpringBoot_Detect(t *testing.T) {
+func writeFiles(dir string, files []string) error {
+	for _, f := range files {
+		path := filepath.Join(dir, f)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, []byte{}, 0644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestDetect(t *testing.T) {
 	tests := []struct {
-		name     string
-		files    map[string]string
-		expected bool
+		name  string
+		files []string
+		want  bool
 	}{
 		{
-			name: "spring boot project",
-			files: map[string]string{
-				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>2.7.0</version>
-		<relativePath/> <!-- lookup parent from repository -->
-	</parent>
-	<groupId>com.example</groupId>
-	<artifactId>demo</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>demo</name>
-	<description>Demo project for Spring Boot</description>
-	<properties>
-		<java.version>11</java.version>
-	</properties>
-	<dependencies>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
-		</dependency>
-	</dependencies>
-</project>`,
-			},
-			expected: true,
+			name:  "maven project",
+			files: []string{"pom.xml"},
+			want:  true,
 		},
 		{
-			name:     "no pom.xml",
-			files:    map[string]string{},
-			expected: false,
+			name:  "gradle project",
+			files: []string{"gradlew"},
+			want:  true,
 		},
 		{
-			name: "non-spring boot project",
-			files: map[string]string{
-				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<groupId>com.example</groupId>
-	<artifactId>demo</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>demo</name>
-	<description>Demo project</description>
-	<properties>
-		<java.version>11</java.version>
-	</properties>
-	<dependencies>
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<version>4.13.2</version>
-			<scope>test</scope>
-		</dependency>
-	</dependencies>
-</project>`,
-			},
-			expected: false,
+			name:  "gradle kotlin project",
+			files: []string{"build.gradle.kts"},
+			want:  true,
+		},
+		{
+			name:  "not a spring boot project",
+			files: []string{"package.json"},
+			want:  false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fsys := fstest.MapFS{}
-			for name, content := range tt.files {
-				fsys[name] = &fstest.MapFile{
-					Data: []byte(content),
-				}
+			dir := t.TempDir()
+			if err := writeFiles(dir, tt.files); err != nil {
+				t.Fatalf("writeFiles() error = %v", err)
 			}
 
-			detector := &SpringBoot{}
-			detected, err := detector.Detect(fsys)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, detected)
+			got := Rule{}.Detect(os.DirFS(dir))
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestFacts(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string
+		want  map[string]any
+	}{
+		{
+			name:  "maven project",
+			files: []string{"pom.xml"},
+			want: map[string]any{
+				"language":   "Java",
+				"framework":  "Spring Boot",
+				"build_tool": "maven",
+				"build_cmd":  "mvn clean package",
+				"start_cmd":  "java -jar target/*.jar",
+				"artifact":   "target/*.jar",
+				"ports":      []int{8080},
+			},
+		},
+		{
+			name:  "gradle project",
+			files: []string{"gradlew"},
+			want: map[string]any{
+				"language":   "Java",
+				"framework":  "Spring Boot",
+				"build_tool": "gradle",
+				"build_cmd":  "mvn clean package",
+				"start_cmd":  "java -jar target/*.jar",
+				"artifact":   "target/*.jar",
+				"ports":      []int{8080},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := writeFiles(dir, tt.files); err != nil {
+				t.Fatalf("writeFiles() error = %v", err)
+			}
+
+			got := Rule{}.Facts(os.DirFS(dir))
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

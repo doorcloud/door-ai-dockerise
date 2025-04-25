@@ -1,35 +1,40 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/rules"
-	"github.com/doorcloud/door-ai-dockerise/internal/rules/springboot"
+	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/loop"
 )
+
+func newTestClient() llm.Client {
+	return llm.New()
+}
 
 func main() {
 	// Parse command line arguments
-	repo := flag.String("repo", ".", "path to the repository")
+	dir := flag.String("dir", ".", "project directory")
 	flag.Parse()
 
-	// Create a new registry
-	registry := rules.NewRegistry()
+	// Create filesystem for the project directory
+	fsys := os.DirFS(*dir)
 
-	// Register the Spring Boot detector
-	registry.Register(&springboot.SpringBoot{})
+	// Run the Dockerfile generation loop
+	ctx := context.Background()
+	client := newTestClient()
 
-	// Create a filesystem for the repository
-	fsys := os.DirFS(*repo)
-
-	// Detect the technology stack
-	rule, detected := registry.Detect(fsys)
-	if !detected {
-		fmt.Println("No technology stack detected")
+	dockerfile, err := loop.Run(ctx, fsys, client)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Print the detected stack
-	fmt.Printf("Detected stack: %s\n", rule.Name)
+	// Write Dockerfile to disk
+	if err := os.WriteFile("Dockerfile", []byte(dockerfile), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing Dockerfile: %v\n", err)
+		os.Exit(1)
+	}
 }

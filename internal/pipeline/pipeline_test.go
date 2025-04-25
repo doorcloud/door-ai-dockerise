@@ -42,7 +42,7 @@ func TestPipeline_Run(t *testing.T) {
 	}
 
 	reg := rules.NewRegistry()
-	reg.Register(&springboot.SpringBoot{})
+	reg.Register(&springboot.Detector{})
 
 	p := &Pipeline{
 		fsys: fsys,

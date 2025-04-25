@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+
+	"github.com/doorcloud/door-ai-dockerise/internal/registry"
 )
 
 // ErrUnknownStack is returned when no rule matches the project
@@ -17,60 +19,19 @@ type RuleInfo struct {
 
 // Detect checks if the given filesystem matches any known rules
 func Detect(fsys fs.FS) (RuleInfo, error) {
-	// Check for Spring Boot with Maven
-	if _, err := fs.Stat(fsys, "pom.xml"); err == nil {
-		return RuleInfo{
-			Name: "spring-boot",
-			Tool: "maven",
-		}, nil
-	}
-
-	// Check for Spring Boot with Gradle
-	if _, err := fs.Stat(fsys, "gradlew"); err == nil {
-		return RuleInfo{
-			Name: "spring-boot",
-			Tool: "gradle",
-		}, nil
-	}
-
-	// Check for Spring Boot with Gradle Kotlin
-	if _, err := fs.Stat(fsys, "build.gradle.kts"); err == nil {
-		return RuleInfo{
-			Name: "spring-boot",
-			Tool: "gradle",
-		}, nil
-	}
-
-	// Check for Node.js projects that use pnpm
-	if _, err := fs.Stat(fsys, "pnpm-lock.yaml"); err == nil {
-		return RuleInfo{
-			Name: "node",
-			Tool: "pnpm",
-		}, nil
-	}
-
-	// Generic Node.js detection (npm / yarn)
-	if _, err := fs.Stat(fsys, "package.json"); err == nil {
-		if _, yarn := fs.Stat(fsys, "yarn.lock"); yarn == nil {
-			return RuleInfo{Name: "node", Tool: "yarn"}, nil
-		}
-		if _, npm := fs.Stat(fsys, "package-lock.json"); npm == nil {
-			return RuleInfo{Name: "node", Tool: "npm"}, nil
-		}
-	}
-
-	// Check for React projects
-	if _, err := fs.Stat(fsys, "package.json"); err == nil {
-		if _, err := fs.Stat(fsys, "src/index.js"); err == nil {
+	// Try all registered rules
+	for _, rule := range registry.All() {
+		if rule.Detect(fsys) {
+			facts := rule.Facts(fsys)
+			tool := "npm" // default to npm
+			if facts != nil {
+				if buildTool, ok := facts["build_tool"].(string); ok {
+					tool = buildTool
+				}
+			}
 			return RuleInfo{
-				Name: "react",
-				Tool: "npm",
-			}, nil
-		}
-		if _, err := fs.Stat(fsys, "src/index.tsx"); err == nil {
-			return RuleInfo{
-				Name: "react",
-				Tool: "npm",
+				Name: rule.Name(),
+				Tool: tool,
 			}, nil
 		}
 	}

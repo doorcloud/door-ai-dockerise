@@ -8,13 +8,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func writeFiles(dir string, files []string) error {
+type testFile struct {
+	path    string
+	content string
+}
+
+func writeFiles(dir string, files []testFile) error {
 	for _, f := range files {
-		path := filepath.Join(dir, f)
+		path := filepath.Join(dir, f.path)
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, []byte{}, 0644); err != nil {
+		content := f.content
+		if content == "" {
+			content = "{}" // Default to empty JSON for empty files
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			return err
 		}
 	}
@@ -24,37 +33,47 @@ func writeFiles(dir string, files []string) error {
 func TestDetect(t *testing.T) {
 	tests := []struct {
 		name     string
-		files    []string
+		files    []testFile
 		expected RuleInfo
 		wantErr  bool
 	}{
 		{
-			name:  "spring boot with maven",
-			files: []string{"pom.xml"},
+			name: "spring boot with maven",
+			files: []testFile{
+				{path: "pom.xml"},
+			},
 			expected: RuleInfo{
 				Name: "spring-boot",
 				Tool: "maven",
 			},
 		},
 		{
-			name:  "spring boot with gradle",
-			files: []string{"gradlew"},
+			name: "spring boot with gradle",
+			files: []testFile{
+				{path: "gradlew"},
+			},
 			expected: RuleInfo{
 				Name: "spring-boot",
 				Tool: "gradle",
 			},
 		},
 		{
-			name:  "node with pnpm",
-			files: []string{"pnpm-lock.yaml"},
+			name: "node with pnpm",
+			files: []testFile{
+				{path: "package.json"},
+				{path: "pnpm-lock.yaml"},
+			},
 			expected: RuleInfo{
 				Name: "node",
 				Tool: "pnpm",
 			},
 		},
 		{
-			name:  "react with npm",
-			files: []string{"package.json", "src/index.js"},
+			name: "react with npm",
+			files: []testFile{
+				{path: "package.json", content: `{"dependencies": {"react": "18.2.0"}}`},
+				{path: "src/index.js"},
+			},
 			expected: RuleInfo{
 				Name: "react",
 				Tool: "npm",

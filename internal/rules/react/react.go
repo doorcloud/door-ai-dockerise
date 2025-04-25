@@ -2,46 +2,52 @@ package react
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
+	"io/fs"
 )
 
-// Detector implements the rules.Rule interface for React projects
+// Detector implements types.Rule.
 type Detector struct{}
 
-func (d Detector) Name() string {
+func (Detector) Name() string {
 	return "react"
 }
 
-func (d Detector) Detect(dir string) bool {
-	// 1. direct hit
-	if hasReactPkg(dir) {
-		return true
-	}
-	// 2. look one level below (covers tests like examples/react)
-	entries, err := os.ReadDir(dir)
+func (Detector) Detect(fsys fs.FS) bool {
+	found := false
+	fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if found || err != nil {
+			return fs.SkipDir
+		}
+
+		if d.IsDir() && d.Name() == "node_modules" {
+			return fs.SkipDir
+		}
+
+		if d.Name() == "package.json" && hasReactPkg(fsys, path) {
+			found = true
+			return fs.SkipDir
+		}
+		return nil
+	})
+	return found
+}
+
+func hasReactPkg(fsys fs.FS, pkgJSONPath string) bool {
+	b, err := fs.ReadFile(fsys, pkgJSONPath)
 	if err != nil {
 		return false
 	}
-	for _, e := range entries {
-		if e.IsDir() && hasReactPkg(filepath.Join(dir, e.Name())) {
-			return true
-		}
-	}
-	return false
+	// Check for different quote styles
+	return bytes.Contains(b, []byte(`"react"`)) || bytes.Contains(b, []byte(`'react'`)) || bytes.Contains(b, []byte(`react:`))
 }
 
-func hasReactPkg(p string) bool {
-	b, err := os.ReadFile(filepath.Join(p, "package.json"))
-	return err == nil && bytes.Contains(b, []byte(`"react"`))
-}
-
-func (d Detector) Facts(dir string) map[string]any {
+func (Detector) Facts(fsys fs.FS) map[string]any {
 	return map[string]any{
 		"language":  "JavaScript",
 		"framework": "React",
 		"build_cmd": "npm ci && npm run build",
+		"start_cmd": "serve -s build",
 		"artifact":  "build",
-		"ports":     []int{3000},
+		"ports":     []int{80},
 	}
 }

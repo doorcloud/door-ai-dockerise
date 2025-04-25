@@ -25,7 +25,11 @@ func runCommand(dir string, name string, args ...string) error {
 }
 
 func newTestClient(t *testing.T) llm.Client {
-	return &llm.MockClient{}
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		t.Fatal("OPENAI_API_KEY environment variable is not set")
+	}
+	return llm.New()
 }
 
 func buildAndRun(t *testing.T, dir string, dockerfile string, ports []string) (string, error) {

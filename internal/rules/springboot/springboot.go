@@ -2,48 +2,76 @@ package springboot
 
 import (
 	"io/fs"
-	"strings"
-
-	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 )
 
-// SpringBoot implements the types.Detector interface for Spring Boot projects
-type SpringBoot struct{}
+// Detector implements types.Detector.
+type Detector struct{}
 
-func (s *SpringBoot) Name() string {
+func (d Detector) Name() string {
 	return "spring-boot"
 }
 
-func (s *SpringBoot) Detect(fsys fs.FS) (bool, error) {
-	// Check for pom.xml
-	if _, err := fs.Stat(fsys, "pom.xml"); err != nil {
-		return false, nil
+func (d Detector) Detect(fsys fs.FS) (bool, error) {
+	// Check for Maven
+	if _, err := fs.Stat(fsys, "pom.xml"); err == nil {
+		return true, nil
 	}
 
-	// Check for spring-boot dependency in pom.xml
-	pomContent, err := fs.ReadFile(fsys, "pom.xml")
-	if err != nil {
-		return false, nil
+	// Check for Gradle
+	if _, err := fs.Stat(fsys, "gradlew"); err == nil {
+		return true, nil
 	}
 
-	// Simple check for spring-boot dependency
-	return containsSpringBootDependency(string(pomContent)), nil
-}
-
-func containsSpringBootDependency(pomContent string) bool {
-	// This is a simple check - in a real implementation, you'd want to parse the XML properly
-	return containsAll(pomContent, "spring-boot", "starter")
-}
-
-func containsAll(s string, substrings ...string) bool {
-	for _, substr := range substrings {
-		if !strings.Contains(s, substr) {
-			return false
-		}
+	// Check for Gradle Kotlin
+	if _, err := fs.Stat(fsys, "build.gradle.kts"); err == nil {
+		return true, nil
 	}
-	return true
+
+	return false, nil
 }
 
-func init() {
-	rules.NewRegistry().Register(&SpringBoot{})
+// Rule implements types.Rule.
+type Rule struct{}
+
+func (r Rule) Name() string {
+	return "spring-boot"
+}
+
+func (r Rule) Detect(fsys fs.FS) bool {
+	// Check for Maven
+	if _, err := fs.Stat(fsys, "pom.xml"); err == nil {
+		return true
+	}
+
+	// Check for Gradle
+	if _, err := fs.Stat(fsys, "gradlew"); err == nil {
+		return true
+	}
+
+	// Check for Gradle Kotlin
+	if _, err := fs.Stat(fsys, "build.gradle.kts"); err == nil {
+		return true
+	}
+
+	return false
+}
+
+func (r Rule) Facts(fsys fs.FS) map[string]any {
+	// Determine build tool
+	tool := "maven"
+	if _, err := fs.Stat(fsys, "gradlew"); err == nil {
+		tool = "gradle"
+	} else if _, err := fs.Stat(fsys, "build.gradle.kts"); err == nil {
+		tool = "gradle"
+	}
+
+	return map[string]any{
+		"language":   "Java",
+		"framework":  "Spring Boot",
+		"build_tool": tool,
+		"build_cmd":  "mvn clean package",
+		"start_cmd":  "java -jar target/*.jar",
+		"artifact":   "target/*.jar",
+		"ports":      []int{8080},
+	}
 }
