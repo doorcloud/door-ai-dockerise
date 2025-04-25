@@ -6,38 +6,25 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
-	"github.com/aliou/dockerfile-gen/internal/generate"
-	"github.com/aliou/dockerfile-gen/internal/llm"
+	"github.com/aliou/dockerfile-gen/internal/loop"
 )
 
 func main() {
 	// Parse command line flags
-	repo := flag.String("repo", "", "Path to the repository")
-	maxRetries := flag.Int("max-retries", 3, "Maximum number of retries for Dockerfile generation")
-	buildTimeout := flag.Duration("build-timeout", 5*time.Minute, "Timeout for Docker build verification")
 	flag.Parse()
-
-	if *repo == "" {
-		log.Fatal("repository path is required")
+	if flag.NArg() != 1 {
+		log.Fatal("usage: dockergen <path>")
 	}
 
 	// Create filesystem from repository path
-	fsys := os.DirFS(*repo)
+	fsys := os.DirFS(flag.Arg(0))
 
-	// Initialize LLM client
-	cli, err := llm.NewClient()
+	// Run the generation loop
+	dockerfile, err := loop.Run(context.Background(), fsys)
 	if err != nil {
-		log.Fatalf("failed to create LLM client: %v", err)
+		log.Fatal(err)
 	}
 
-	// Generate Dockerfile
-	dockerfile, err := generate.Generate(context.Background(), fsys, cli, *maxRetries, *buildTimeout)
-	if err != nil {
-		log.Fatalf("failed to generate Dockerfile: %v", err)
-	}
-
-	// Print the generated Dockerfile
 	fmt.Println(dockerfile)
 }
