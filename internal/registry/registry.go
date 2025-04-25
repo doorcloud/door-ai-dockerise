@@ -1,6 +1,9 @@
 package registry
 
-import "github.com/doorcloud/door-ai-dockerise/internal/rules"
+import (
+	"github.com/doorcloud/door-ai-dockerise/internal/rules"
+	"github.com/doorcloud/door-ai-dockerise/internal/rules/react"
+)
 
 var all []rules.Rule
 
@@ -12,4 +15,8 @@ func Register(r rules.Rule) {
 // All returns all registered rules
 func All() []rules.Rule {
 	return all
+}
+
+func init() {
+	Register(&react.Detector{})
 }

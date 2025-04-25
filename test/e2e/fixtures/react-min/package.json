@@ -1,0 +1,11 @@
+{
+  "name": "app",
+  "scripts": {
+    "build": "echo ok",
+    "start": "serve -s build"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "serve": "^14.2.1"
+  }
+} 

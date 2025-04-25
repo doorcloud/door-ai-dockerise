@@ -1,0 +1,7 @@
+{
+  "language": "JavaScript",
+  "framework": "React",
+  "build_cmd": "npm ci && npm run build",
+  "artifact": "build",
+  "ports": [3000]
+} 

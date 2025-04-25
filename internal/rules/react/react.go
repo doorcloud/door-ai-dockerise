@@ -14,97 +14,41 @@ func (d *Detector) Name() string {
 }
 
 func (d *Detector) Detect(repo string) bool {
-	// Read package.json
-	data, err := os.ReadFile(filepath.Join(repo, "package.json"))
+	// Check for package.json
+	pkgPath := filepath.Join(repo, "package.json")
+	data, err := os.ReadFile(pkgPath)
 	if err != nil {
 		return false
 	}
 
-	// Parse package.json
+	// Check for React dependency
 	var pkg struct {
-		Dependencies    map[string]string `json:"dependencies"`
-		DevDependencies map[string]string `json:"devDependencies"`
+		Dependencies map[string]string `json:"dependencies"`
 	}
 	if err := json.Unmarshal(data, &pkg); err != nil {
 		return false
 	}
 
-	// Check for React and build tool
-	hasReact := false
-	hasVite := false
-	hasCRA := false
-
-	// Check dependencies
-	for dep := range pkg.Dependencies {
-		if dep == "react" {
-			hasReact = true
-		}
-		if dep == "vite" {
-			hasVite = true
-		}
-		if dep == "react-scripts" {
-			hasCRA = true
-		}
+	if _, hasReact := pkg.Dependencies["react"]; !hasReact {
+		return false
 	}
 
-	// Check devDependencies
-	for dep := range pkg.DevDependencies {
-		if dep == "vite" {
-			hasVite = true
-		}
-		if dep == "react-scripts" {
-			hasCRA = true
-		}
-	}
-
-	// Must have React and either Vite or CRA
-	return hasReact && (hasVite || hasCRA)
+	// Check for src/index.js or src/index.tsx
+	return fileExists(filepath.Join(repo, "src", "index.js")) ||
+		fileExists(filepath.Join(repo, "src", "index.tsx"))
 }
 
 func (d *Detector) Facts(repo string) map[string]any {
-	// Check if it's a Vite project
-	isVite := false
-	if data, err := os.ReadFile(filepath.Join(repo, "package.json")); err == nil {
-		var pkg struct {
-			Dependencies    map[string]string `json:"dependencies"`
-			DevDependencies map[string]string `json:"devDependencies"`
-		}
-		if json.Unmarshal(data, &pkg) == nil {
-			_, hasVite := pkg.Dependencies["vite"]
-			_, hasViteDev := pkg.DevDependencies["vite"]
-			isVite = hasVite || hasViteDev
-		}
-	}
-
-	// Set facts based on build tool
-	if isVite {
-		return map[string]any{
-			"language":  "javascript",
-			"framework": "react",
-			"buildTool": "npm",
-			"buildCmd":  "npm run build",
-			"buildDir":  "dist",
-			"startCmd":  "npm start",
-			"artifact":  "dist",
-			"ports":     []int{5173},
-			"health":    "/",
-			"baseImage": "node:18-alpine",
-			"env":       map[string]string{},
-		}
-	}
-
-	// Default to CRA
 	return map[string]any{
-		"language":  "javascript",
-		"framework": "react",
-		"buildTool": "npm",
-		"buildCmd":  "npm run build",
-		"buildDir":  "build",
-		"startCmd":  "npm start",
+		"language":  "JavaScript",
+		"framework": "React",
+		"build_cmd": "npm ci && npm run build",
 		"artifact":  "build",
 		"ports":     []int{3000},
-		"health":    "/",
-		"baseImage": "node:18-alpine",
-		"env":       map[string]string{},
 	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
