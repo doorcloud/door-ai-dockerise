@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	_ "github.com/doorcloud/door-ai-dockerise/internal/rules/springboot"
 )
 
 type dummyVerifier struct{}

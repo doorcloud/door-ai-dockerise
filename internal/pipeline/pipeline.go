@@ -3,10 +3,10 @@ package pipeline
 import (
 	"context"
 	"errors"
-	"os"
 	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/registry"
 	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 	"github.com/doorcloud/door-ai-dockerise/pkg/dockerverify"
 )
@@ -17,23 +17,30 @@ const attempts = 4
 // GenerateAndVerify runs the full flow and returns the *final* Dockerfile.
 func GenerateAndVerify(ctx context.Context, repo string, c llm.Client, v dockerverify.Verifier) (string, error) {
 	// 1) Facts ─────────────────────────────────────────────
-	if _, err := c.Chat("facts", repo); err != nil {
+	facts, err := c.Chat("facts", repo)
+	if err != nil {
 		return "", err
 	}
 
 	// 2) Rule ──────────────────────────────────────────────
-	if _, err := rules.DetectStack(os.DirFS(repo)); err != nil {
-		return "", err
+	var chosen rules.Rule
+	for _, r := range registry.All() {
+		if r.Match(facts) {
+			chosen = r
+			break
+		}
+	}
+	if chosen == nil {
+		return "", errors.New("no rule matched")
 	}
 
 	// 3) Dockerfile loop ──────────────────────────────────
 	df := ""
 	for i := 0; i < attempts; i++ {
-		var err error
 		if i == 0 {
-			df, err = c.Chat("dockerfile", repo)
+			df, err = c.Chat("dockerfile", chosen.GenPrompt())
 		} else {
-			df, err = c.Chat("dockerfile", repo+"\nError: "+err.Error()+"\nCurrent Dockerfile:\n"+df)
+			df, err = c.Chat("dockerfile", chosen.FixPrompt())
 		}
 		if err != nil {
 			return "", err
