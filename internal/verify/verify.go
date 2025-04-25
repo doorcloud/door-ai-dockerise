@@ -22,23 +22,36 @@ func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
 	defer cancel()
 
 	// Create a temporary directory for the build
-	dir, err := os.MkdirTemp("", "dockergen-*")
+	dir, err := os.MkdirTemp(os.TempDir(), "dockergen-*")
 	if err != nil {
 		return fmt.Errorf("create temp dir: %w", err)
 	}
 	defer os.RemoveAll(dir)
 
-	// Write the Dockerfile
-	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
-		return fmt.Errorf("write Dockerfile: %w", err)
+	// Set proper permissions on the temporary directory
+	if err := os.Chmod(dir, 0777); err != nil {
+		return fmt.Errorf("chmod temp dir: %w", err)
 	}
 
-	// Create .dockerignore
-	if err := createDockerignore(dir); err != nil {
-		return fmt.Errorf("create .dockerignore: %w", err)
+	// First, create all directories with proper permissions
+	err = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			targetDir := filepath.Join(dir, path)
+			if err := os.MkdirAll(targetDir, 0777); err != nil {
+				return fmt.Errorf("create directory %s: %w", path, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("create directories: %w", err)
 	}
 
-	// Copy files from the test filesystem to the temporary directory
+	// Then copy all files
 	err = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -49,9 +62,9 @@ func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
 			return nil
 		}
 
-		// Create directories
+		// Skip directories as they were already created
 		if d.IsDir() {
-			return os.MkdirAll(filepath.Join(dir, path), 0755)
+			return nil
 		}
 
 		// Copy files
@@ -60,14 +73,33 @@ func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
 			return fmt.Errorf("read file %s: %w", path, err)
 		}
 
-		if err := os.WriteFile(filepath.Join(dir, path), data, 0644); err != nil {
+		info, err := fs.Stat(fsys, path)
+		if err != nil {
+			return fmt.Errorf("stat file %s: %w", path, err)
+		}
+
+		targetFile := filepath.Join(dir, path)
+		if err := os.WriteFile(targetFile, data, 0666); err != nil {
 			return fmt.Errorf("write file %s: %w", path, err)
+		}
+		if err := os.Chmod(targetFile, info.Mode()|0666); err != nil {
+			return fmt.Errorf("chmod file %s: %w", path, err)
 		}
 
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("copy files: %w", err)
+	}
+
+	// Write the Dockerfile
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(dockerfile), 0666); err != nil {
+		return fmt.Errorf("write Dockerfile: %w", err)
+	}
+
+	// Create .dockerignore
+	if err := createDockerignore(dir); err != nil {
+		return fmt.Errorf("create .dockerignore: %w", err)
 	}
 
 	// Initialize Docker client

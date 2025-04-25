@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 	"github.com/doorcloud/door-ai-dockerise/internal/loop"
 )
 
@@ -50,7 +51,8 @@ func TestIntegration_SpringBoot(t *testing.T) {
 	// Run through the loop package directly
 	t.Run("via loop package", func(t *testing.T) {
 		fsys := os.DirFS(testDir)
-		dockerfile, err := loop.Run(ctx, fsys)
+		client := llm.NewClient(os.Getenv("OPENAI_API_KEY"))
+		dockerfile, err := loop.Run(ctx, fsys, client)
 		if err != nil {
 			t.Fatalf("loop.Run failed: %v", err)
 		}
