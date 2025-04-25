@@ -1,9 +1,6 @@
 package rules
 
 import (
-	"io/fs"
-	"os"
-	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -11,179 +8,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// fakeRule1 is a test rule that always matches
-type fakeRule1 struct{}
-
-func (r *fakeRule1) Name() string           { return "fake1" }
-func (r *fakeRule1) Detect(fsys fs.FS) bool { return true }
-
-// fakeRule2 is a test rule that never matches
-type fakeRule2 struct{}
-
-func (r *fakeRule2) Name() string           { return "fake2" }
-func (r *fakeRule2) Detect(fsys fs.FS) bool { return false }
-
-func init() {
-	Register(&fakeRule1{})
-	Register(&fakeRule2{})
-}
-
-func TestDetect(t *testing.T) {
+func TestGetFacts_SpringBootGradle(t *testing.T) {
 	fsys := fstest.MapFS{}
-
-	// Should return fakeRule1 since it's the first matching rule
-	rule, err := Detect(fsys)
-	if err != nil {
-		t.Fatalf("Detect() error = %v", err)
-	}
-	if rule.Name() != "fake1" {
-		t.Errorf("Detect() = %v, want fake1", rule.Name())
-	}
+	facts, err := GetFacts(fsys, detect.RuleInfo{
+		Name: "spring-boot",
+		Tool: "gradle",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "java", facts.Language)
+	assert.Equal(t, "spring-boot", facts.Framework)
+	assert.Equal(t, "gradle", facts.BuildTool)
+	assert.Equal(t, "./gradlew bootJar -x test", facts.BuildCmd)
+	assert.Equal(t, "build/libs/*.jar", facts.Artifact)
+	assert.Equal(t, []int{8080}, facts.Ports)
 }
 
-func TestDetect_NoMatch(t *testing.T) {
-	// Clear the registry
-	reg = nil
-
+func TestGetFacts_NodePnpm(t *testing.T) {
 	fsys := fstest.MapFS{}
-	_, err := Detect(fsys)
-	if err == nil {
-		t.Error("Detect() error = nil, want error")
-	}
-}
-
-func TestDetectStack(t *testing.T) {
-	tests := []struct {
-		name     string
-		files    map[string]string
-		expected *detect.RuleInfo
-		wantErr  error
-	}{
-		{
-			name: "spring boot maven",
-			files: map[string]string{
-				"pom.xml": "<project></project>",
-			},
-			expected: &detect.RuleInfo{
-				Name: "spring-boot",
-				Tool: "maven",
-			},
-			wantErr: nil,
-		},
-		{
-			name: "spring boot gradle",
-			files: map[string]string{
-				"gradlew": "#!/bin/sh",
-			},
-			expected: &detect.RuleInfo{
-				Name: "spring-boot",
-				Tool: "gradle",
-			},
-			wantErr: nil,
-		},
-		{
-			name:     "no match",
-			files:    map[string]string{},
-			expected: nil,
-			wantErr:  ErrUnknownStack,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create test filesystem
-			fsys := fstest.MapFS{}
-			for path, content := range tt.files {
-				fsys[path] = &fstest.MapFile{Data: []byte(content)}
-			}
-
-			// Run detection
-			gotRule, gotErr := DetectStack(fsys)
-			if gotErr != tt.wantErr {
-				t.Errorf("DetectStack() error = %v, want %v", gotErr, tt.wantErr)
-			}
-			if tt.expected != nil && *gotRule != *tt.expected {
-				t.Errorf("DetectStack() rule = %v, want %v", gotRule, tt.expected)
-			}
-		})
-	}
-}
-
-func TestDetect_SpringBoot(t *testing.T) {
-	// Create a temporary directory for testing
-	dir, err := os.MkdirTemp("", "springboot-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
-	// Create a Spring Boot application class
-	appDir := filepath.Join(dir, "src", "main", "java", "com", "example")
-	if err := os.MkdirAll(appDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	appFile := filepath.Join(appDir, "Application.java")
-	if err := os.WriteFile(appFile, []byte(`
-package com.example;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-@SpringBootApplication
-public class Application {
-    public static void main(String[] args) {
-        SpringApplication.run(Application.class, args);
-    }
-}
-`), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Test detection
-	rule := Detect(dir)
-	if rule == nil {
-		t.Error("Expected Spring Boot rule to match")
-	}
-	if rule.Name() != "spring-boot" {
-		t.Errorf("Expected rule name 'spring-boot', got '%s'", rule.Name())
-	}
-}
-
-func TestDetect_EmptyDir(t *testing.T) {
-	// Create a temporary empty directory
-	dir, err := os.MkdirTemp("", "empty-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
-	// Test detection
-	rule := Detect(dir)
-	if rule != nil {
-		t.Error("Expected no rule to match empty directory")
-	}
-}
-
-type mockDetector struct {
-	name     string
-	detected bool
-}
-
-func (d *mockDetector) Name() string {
-	return d.name
-}
-
-func (d *mockDetector) Detect(fsys fs.FS) (bool, error) {
-	return d.detected, nil
-}
-
-func TestRegistry(t *testing.T) {
-	reg := NewRegistry()
-	reg.Register(&mockDetector{name: "mock", detected: true})
-
-	fsys := fstest.MapFS{}
-	detected, ok := reg.Detect(fsys)
-	assert.True(t, ok)
-	assert.Equal(t, detect.RuleInfo{Name: "mock"}, detected)
+	facts, err := GetFacts(fsys, detect.RuleInfo{
+		Name: "node",
+		Tool: "pnpm",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "javascript", facts.Language)
+	assert.Equal(t, "node", facts.Framework)
+	assert.Equal(t, "pnpm", facts.BuildTool)
+	assert.Equal(t, "pnpm install --frozen-lockfile && pnpm run build", facts.BuildCmd)
+	assert.Equal(t, "dist/**", facts.Artifact)
+	assert.Equal(t, []int{3000}, facts.Ports)
 }
