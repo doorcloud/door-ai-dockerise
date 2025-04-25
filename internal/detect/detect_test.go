@@ -24,6 +24,28 @@ func TestDetect(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "spring boot gradle project",
+			files: map[string]string{
+				"gradlew": "#!/bin/sh",
+			},
+			wantRule: Rule{
+				Name: "spring-boot",
+				Tool: "gradle",
+			},
+			wantErr: false,
+		},
+		{
+			name: "pnpm project",
+			files: map[string]string{
+				"pnpm-lock.yaml": "lockfileVersion: 5.4",
+			},
+			wantRule: Rule{
+				Name: "node",
+				Tool: "pnpm",
+			},
+			wantErr: false,
+		},
+		{
 			name:     "empty project",
 			files:    map[string]string{},
 			wantRule: Rule{},
