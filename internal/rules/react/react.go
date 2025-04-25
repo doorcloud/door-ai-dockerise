@@ -1,7 +1,7 @@
 package react
 
 import (
-	"encoding/json"
+	"bytes"
 	"os"
 	"path/filepath"
 )
@@ -9,36 +9,21 @@ import (
 // Detector implements the rules.Rule interface for React projects
 type Detector struct{}
 
-func (d *Detector) Name() string {
+func (d Detector) Name() string {
 	return "react"
 }
 
-func (d *Detector) Detect(dir string) bool {
-	// Check for package.json
-	pkgPath := filepath.Join(dir, "package.json")
-	data, err := os.ReadFile(pkgPath)
+func (d Detector) Detect(dir string) bool {
+	pkg := filepath.Join(dir, "package.json")
+	b, err := os.ReadFile(pkg)
 	if err != nil {
 		return false
 	}
-
-	// Check for React dependency
-	var pkg struct {
-		Dependencies map[string]string `json:"dependencies"`
-	}
-	if err := json.Unmarshal(data, &pkg); err != nil {
-		return false
-	}
-
-	if _, hasReact := pkg.Dependencies["react"]; !hasReact {
-		return false
-	}
-
-	// Check for src/index.js or src/index.tsx
-	return fileExists(filepath.Join(dir, "src", "index.js")) ||
-		fileExists(filepath.Join(dir, "src", "index.tsx"))
+	// very small and safe: just look for "react" in dependencies or devDependencies
+	return bytes.Contains(b, []byte(`"react"`))
 }
 
-func (d *Detector) Facts(dir string) map[string]any {
+func (d Detector) Facts(dir string) map[string]any {
 	return map[string]any{
 		"language":  "JavaScript",
 		"framework": "React",
@@ -46,9 +31,4 @@ func (d *Detector) Facts(dir string) map[string]any {
 		"artifact":  "build",
 		"ports":     []int{3000},
 	}
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

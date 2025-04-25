@@ -5,5 +5,5 @@ import (
 )
 
 func init() {
-	Register(&react.Detector{})
+	Register(react.Detector{})
 }
