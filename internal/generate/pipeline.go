@@ -1,4 +1,4 @@
-package generator
+package generate
 
 import (
 	"context"
@@ -7,15 +7,14 @@ import (
 	"time"
 
 	"github.com/aliou/dockerfile-gen/internal/llm"
-	"github.com/aliou/dockerfile-gen/internal/stack"
+	"github.com/aliou/dockerfile-gen/internal/rules"
 	"github.com/aliou/dockerfile-gen/pkg/dockerverify"
 )
 
 // Generate orchestrates the Dockerfile generation pipeline
 func Generate(ctx context.Context, fsys fs.FS, cli llm.Client, maxRetries int, buildTimeout time.Duration) (string, error) {
 	// Detect the stack
-	registry := stack.Registry{} // TODO: Initialize with actual rules
-	rule, err := registry.Match(ctx, fsys)
+	rule, err := rules.Detect(ctx, fsys)
 	if err != nil {
 		return "", fmt.Errorf("failed to detect stack: %w", err)
 	}
@@ -29,8 +28,13 @@ func Generate(ctx context.Context, fsys fs.FS, cli llm.Client, maxRetries int, b
 		return "", fmt.Errorf("failed to get snippets: %w", err)
 	}
 
+	// Convert snippets to facts
+	facts := map[string]interface{}{
+		"snippets": snippets,
+	}
+
 	// Analyze facts
-	facts, err := cli.AnalyzeFacts(ctx, snippets)
+	facts, err = cli.AnalyzeFacts(ctx, facts)
 	if err != nil {
 		return "", fmt.Errorf("failed to analyze facts: %w", err)
 	}
@@ -38,7 +42,7 @@ func Generate(ctx context.Context, fsys fs.FS, cli llm.Client, maxRetries int, b
 	var dockerfile string
 	for i := 0; i < maxRetries; i++ {
 		// Generate Dockerfile
-		dockerfile, err = cli.GenerateDockerfile(ctx, facts, dockerfile, "")
+		dockerfile, err = cli.GenerateDockerfile(ctx, facts)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate Dockerfile: %w", err)
 		}
@@ -53,7 +57,8 @@ func Generate(ctx context.Context, fsys fs.FS, cli llm.Client, maxRetries int, b
 		}
 
 		// If verification failed, use the error log to generate a new Dockerfile
-		dockerfile, err = cli.GenerateDockerfile(ctx, facts, dockerfile, errLog)
+		facts["error_log"] = errLog
+		dockerfile, err = cli.GenerateDockerfile(ctx, facts)
 		if err != nil {
 			return "", fmt.Errorf("failed to fix Dockerfile: %w", err)
 		}

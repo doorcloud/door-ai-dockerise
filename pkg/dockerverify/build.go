@@ -14,7 +14,7 @@ import (
 )
 
 // Build builds a Docker image from the given Dockerfile and filesystem
-func Build(ctx context.Context, fsys fs.FS, dockerfile string, cli DockerClient) (string, error) {
+func Build(ctx context.Context, fsys fs.FS, dockerfile string, cli APIClient) (string, error) {
 	// Create a temporary directory for the build
 	dir, err := os.MkdirTemp("", "dockergen-*")
 	if err != nil {

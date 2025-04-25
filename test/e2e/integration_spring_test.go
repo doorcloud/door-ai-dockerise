@@ -3,11 +3,13 @@ package e2e
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/aliou/dockerfile-gen/internal/config"
-	"github.com/aliou/dockerfile-gen/internal/generator"
+	"github.com/aliou/dockerfile-gen/internal/generate"
 	"github.com/aliou/dockerfile-gen/internal/llm"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,7 +53,7 @@ func TestE2E_SpringBootRepos(t *testing.T) {
 			assert.NoError(t, err)
 
 			// Generate Dockerfile
-			dockerfile, err := generator.Generate(ctx, os.DirFS(dir), client, 3, cfg.BuildTimeout)
+			dockerfile, err := generate.Generate(ctx, os.DirFS(dir), client, 3, cfg.BuildTimeout)
 			assert.NoError(t, err)
 			assert.NotEmpty(t, dockerfile)
 		})
@@ -61,4 +63,42 @@ func TestE2E_SpringBootRepos(t *testing.T) {
 func cloneRepo(ctx context.Context, url string, dir string) error {
 	// TODO: Implement repository cloning
 	return nil
+}
+
+func TestSpringBootIntegration(t *testing.T) {
+	// Skip if OPENAI_API_KEY is not set
+	if os.Getenv("OPENAI_API_KEY") == "" {
+		t.Skip("OPENAI_API_KEY not set")
+	}
+
+	// Create a new LLM client
+	cli, err := llm.NewClient()
+	if err != nil {
+		t.Fatalf("failed to create LLM client: %v", err)
+	}
+
+	// Get the test data directory
+	testDir := filepath.Join("testdata", "spring")
+	fsys := os.DirFS(testDir)
+
+	// Generate Dockerfile
+	dockerfile, err := generate.Generate(context.Background(), fsys, cli, 3, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("failed to generate Dockerfile: %v", err)
+	}
+
+	// Verify the Dockerfile contains expected commands
+	expectedCommands := []string{
+		"FROM",
+		"WORKDIR",
+		"COPY",
+		"RUN",
+		"CMD",
+	}
+
+	for _, cmd := range expectedCommands {
+		if !strings.Contains(dockerfile, cmd) {
+			t.Errorf("Dockerfile missing command: %s", cmd)
+		}
+	}
 }
