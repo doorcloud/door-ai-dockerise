@@ -46,9 +46,15 @@ func Run(ctx context.Context, fsys fs.FS, client llm.Client) (string, error) {
 	var lastError error
 	for i := 0; i < 3; i++ {
 		// Generate Dockerfile
-		df, err := dockerfile.Generate(ctx, typedFacts, client)
-		if err != nil {
-			return "", fmt.Errorf("generate dockerfile: %w", err)
+		var df string
+		if rule.Name == "react" {
+			df = dockerfile.GenReact(typedFacts)
+		} else {
+			var err error
+			df, err = dockerfile.Generate(ctx, typedFacts, client)
+			if err != nil {
+				return "", fmt.Errorf("generate dockerfile: %w", err)
+			}
 		}
 
 		// Verify the Dockerfile

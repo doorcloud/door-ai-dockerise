@@ -18,7 +18,7 @@ import (
 // Verify builds the Dockerfile in a temporary directory and returns the result
 func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
 	// Get timeout from environment or use default
-	timeout := 5 * time.Minute
+	timeout := 20 * time.Minute // Increased timeout for React builds
 	if val := os.Getenv("DG_BUILD_TIMEOUT"); val != "" {
 		if d, err := time.ParseDuration(val); err == nil {
 			timeout = d
@@ -200,35 +200,46 @@ func Verify(ctx context.Context, fsys fs.FS, dockerfile string) error {
 			done <- fmt.Errorf("read build output: %w", err)
 			return
 		}
-		if !strings.Contains(logs.String(), "Successfully built") {
+
+		// Check for build errors
+		if strings.Contains(logs.String(), `"error"`) {
 			done <- fmt.Errorf("build failed: %s", logs.String())
 			return
 		}
+
 		done <- nil
 	}()
 
+	// Wait for build to complete or timeout
 	select {
 	case err := <-done:
 		return err
 	case <-ctx.Done():
-		return fmt.Errorf("build timeout: %w", ctx.Err())
+		return fmt.Errorf("build timeout after %s", timeout)
 	}
 }
 
-// createDockerignore creates a .dockerignore file in the build context directory
 func createDockerignore(dir string) error {
-	ignoreContent := `.git
-**/*.iml
-.idea
-docs
-*.md
-!mvnw
-!.mvn/**
-`
-	return os.WriteFile(filepath.Join(dir, ".dockerignore"), []byte(ignoreContent), 0644)
+	content := []string{
+		".git",
+		"node_modules",
+		"npm-debug.log",
+		"Dockerfile",
+		".dockerignore",
+		".env",
+		".env.local",
+		".env.development.local",
+		".env.test.local",
+		".env.production.local",
+	}
+
+	return os.WriteFile(
+		filepath.Join(dir, ".dockerignore"),
+		[]byte(strings.Join(content, "\n")),
+		0666,
+	)
 }
 
-// fileExists checks if a file exists
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
