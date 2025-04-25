@@ -2,16 +2,21 @@ package facts
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
+	"strings"
+	"text/template"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/detect"
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 )
+
+//go:embed prompts/facts.tmpl
+var promptsFS embed.FS
 
 // Facts represents the detected facts about a technology stack
 type Facts struct {
@@ -48,59 +53,55 @@ func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.Rule, client l
 		return Facts{}, fmt.Errorf("get snippets: %w", err)
 	}
 
-	// Build facts prompt
-	prompt := buildFactsPrompt(snippets)
-
-	// Call LLM to analyze facts
-	resp, err := client.Chat(ctx, prompt)
+	// Build prompt from template
+	prompt, err := buildFactsPrompt(snippets)
 	if err != nil {
-		return Facts{}, fmt.Errorf("llm call failed: %w", err)
+		return Facts{}, fmt.Errorf("build prompt: %w", err)
 	}
 
-	// Parse response as JSON
+	// Get facts from LLM
+	response, err := client.Chat(ctx, prompt)
+	if err != nil {
+		return Facts{}, fmt.Errorf("chat: %w", err)
+	}
+
+	// Parse response
 	var facts Facts
-	if err := json.Unmarshal([]byte(resp), &facts); err != nil {
-		return Facts{}, fmt.Errorf("parse facts json: %w", err)
+	if err := json.Unmarshal([]byte(response), &facts); err != nil {
+		return Facts{}, fmt.Errorf("parse response: %w", err)
 	}
 
 	return facts, nil
 }
 
-// getSnippets collects relevant code snippets from the filesystem
+// getSnippets extracts relevant code snippets from the filesystem
 func getSnippets(fsys fs.FS) ([]string, error) {
 	var snippets []string
 
-	// Collect relevant files
-	files := []string{
-		"pom.xml",
-		"build.gradle",
-		"application.properties",
-		"application.yml",
-		"application.yaml",
-	}
-
-	for _, file := range files {
-		content, err := fs.ReadFile(fsys, file)
-		if err == nil {
-			snippets = append(snippets, string(content))
-		}
-	}
-
-	// Find and add main application class
+	// Walk the filesystem
 	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() && (filepath.Ext(path) == ".java" || filepath.Ext(path) == ".kt") {
-			content, err := fs.ReadFile(fsys, path)
-			if err != nil {
-				return err
-			}
-			if regexp.MustCompile(`@SpringBootApplication`).Match(content) {
-				snippets = append(snippets, string(content))
-				return filepath.SkipDir
-			}
+
+		// Skip directories
+		if d.IsDir() {
+			return nil
 		}
+
+		// Skip non-code files
+		if !isCodeFile(path) {
+			return nil
+		}
+
+		// Read file content
+		content, err := fs.ReadFile(fsys, path)
+		if err != nil {
+			return err
+		}
+
+		// Add to snippets
+		snippets = append(snippets, string(content))
 		return nil
 	})
 	if err != nil {
@@ -110,23 +111,36 @@ func getSnippets(fsys fs.FS) ([]string, error) {
 	return snippets, nil
 }
 
-// buildFactsPrompt creates the prompt for fact extraction
-func buildFactsPrompt(snippets []string) string {
-	return fmt.Sprintf(`You are a code analysis expert. Given a set of code snippets, extract key facts about the project.
-The output must be valid JSON with the following structure:
-{
-  "language": "java",
-  "framework": "spring-boot",
-  "build_tool": "build system (maven, gradle, etc)",
-  "build_cmd": "command to build",
-  "build_dir": "directory containing build files (e.g., '.', 'backend/')",
-  "start_cmd": "command to start the application",
-  "artifact": "path to built artifact",
-  "ports": [8080],
-  "env": {"key": "value"},
-  "health": "/actuator/health"
+// isCodeFile checks if a file is likely to contain code
+func isCodeFile(path string) bool {
+	ext := filepath.Ext(path)
+	return ext == ".java" || ext == ".py" || ext == ".js" || ext == ".ts" || ext == ".go"
 }
 
-Code snippets:
-%s`, snippets)
+// buildFactsPrompt creates the prompt for fact extraction
+func buildFactsPrompt(snippets []string) (string, error) {
+	// Read template
+	tmplContent, err := promptsFS.ReadFile("prompts/facts.tmpl")
+	if err != nil {
+		return "", fmt.Errorf("read template: %w", err)
+	}
+
+	// Parse template
+	tmpl, err := template.New("facts").Parse(string(tmplContent))
+	if err != nil {
+		return "", fmt.Errorf("parse template: %w", err)
+	}
+
+	// Execute template
+	var result strings.Builder
+	data := struct {
+		Snippets string
+	}{
+		Snippets: strings.Join(snippets, "\n\n"),
+	}
+	if err := tmpl.Execute(&result, data); err != nil {
+		return "", fmt.Errorf("execute template: %w", err)
+	}
+
+	return result.String(), nil
 }
