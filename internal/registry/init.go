@@ -9,6 +9,7 @@ import (
 func init() {
 	Register(&react.Detector{})
 	Register(&react.FactsDetector{})
+	Register(&react.DockerfileGenerator{})
 	Register(&springboot.Rule{})
 	Register(&node.Detector{})
 }
