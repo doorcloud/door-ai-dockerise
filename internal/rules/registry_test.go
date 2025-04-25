@@ -1,6 +1,8 @@
 package rules
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -61,5 +63,61 @@ func TestDetectStack(t *testing.T) {
 				t.Errorf("DetectStack() rule = %v, want %v", gotRule, tt.wantRule)
 			}
 		})
+	}
+}
+
+func TestDetect_SpringBoot(t *testing.T) {
+	// Create a temporary directory for testing
+	dir, err := os.MkdirTemp("", "springboot-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	// Create a Spring Boot application class
+	appDir := filepath.Join(dir, "src", "main", "java", "com", "example")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	appFile := filepath.Join(appDir, "Application.java")
+	if err := os.WriteFile(appFile, []byte(`
+package com.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class Application {
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+    }
+}
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test detection
+	rule := Detect(dir)
+	if rule == nil {
+		t.Error("Expected Spring Boot rule to match")
+	}
+	if rule.Name() != "spring-boot" {
+		t.Errorf("Expected rule name 'spring-boot', got '%s'", rule.Name())
+	}
+}
+
+func TestDetect_EmptyDir(t *testing.T) {
+	// Create a temporary empty directory
+	dir, err := os.MkdirTemp("", "empty-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	// Test detection
+	rule := Detect(dir)
+	if rule != nil {
+		t.Error("Expected no rule to match empty directory")
 	}
 }

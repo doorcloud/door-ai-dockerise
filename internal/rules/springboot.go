@@ -1,17 +1,16 @@
-package springboot
+package rules
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/doorcloud/door-ai-dockerise/internal/rules"
 )
 
+// springBootRule implements Rule for Spring Boot projects
 type springBootRule struct{}
 
 func init() {
-	rules.Register(&springBootRule{})
+	Register(&springBootRule{})
 }
 
 func (r *springBootRule) Name() string {

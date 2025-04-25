@@ -1,14 +1,12 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
 	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
-	"github.com/doorcloud/door-ai-dockerise/pkg/dockerverify"
 )
 
 func main() {
@@ -25,12 +23,9 @@ func main() {
 	// Initialize LLM client
 	client := llm.New()
 
-	// Generate and verify Dockerfile
-	df, err := pipeline.GenerateAndVerify(context.Background(), os.Args[1], client, dockerverify.New())
-	if err != nil {
+	// Run the pipeline
+	if err := pipeline.Run(os.Args[1], client); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-
-	fmt.Println(df)
 }

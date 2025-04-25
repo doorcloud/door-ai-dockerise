@@ -55,3 +55,18 @@ func (r *Registry) Detect(fsys fs.FS) (detect.Rule, bool) {
 	}
 	return detect.Rule{}, false
 }
+
+var all []Rule
+
+// Register is called from each rule's init()
+func Register(r Rule) { all = append(all, r) }
+
+// Detect returns the first matching rule, or nil if none match
+func Detect(repo string) Rule {
+	for _, r := range all {
+		if r.Detect(repo) {
+			return r
+		}
+	}
+	return nil
+}
