@@ -2,28 +2,32 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"log"
 	"os"
 
+	"github.com/aliou/dockerfile-gen/internal/llm"
 	"github.com/aliou/dockerfile-gen/internal/loop"
 )
 
 func main() {
-	// Parse command line flags
-	flag.Parse()
-	if flag.NArg() != 1 {
-		log.Fatal("usage: dockergen <path>")
+	if len(os.Args) != 2 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <repo-path>\n", os.Args[0])
+		os.Exit(1)
 	}
 
-	// Create filesystem from repository path
-	fsys := os.DirFS(flag.Arg(0))
+	// Initialize LLM client
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		fmt.Fprintln(os.Stderr, "OPENAI_API_KEY is required")
+		os.Exit(1)
+	}
+	client := llm.NewClient(apiKey)
 
 	// Run the generation loop
-	dockerfile, err := loop.Run(context.Background(), fsys)
+	dockerfile, err := loop.Run(context.Background(), os.DirFS(os.Args[1]), client)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Println(dockerfile)

@@ -4,20 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
+
+	"github.com/sashabaranov/go-openai"
 )
 
 // openAIClient implements the Client interface using OpenAI's API
 type openAIClient struct {
-	apiKey     string
-	httpClient *http.Client
+	client *openai.Client
 }
 
 // NewOpenAIClient creates a new OpenAI client
 func NewOpenAIClient(apiKey string) Client {
 	return &openAIClient{
-		apiKey:     apiKey,
-		httpClient: &http.Client{},
+		client: openai.NewClient(apiKey),
 	}
 }
 
@@ -60,4 +59,21 @@ Provide only the Dockerfile content, no explanations or markdown formatting.`, f
 WORKDIR /app
 COPY . .
 CMD ["echo", "Hello, World!"]`, nil
+}
+
+// Chat sends a prompt to OpenAI and returns the response
+func (c *openAIClient) Chat(ctx context.Context, prompt string) (string, error) {
+	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: openai.GPT4,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: prompt,
+			},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("openai call failed: %w", err)
+	}
+	return resp.Choices[0].Message.Content, nil
 }

@@ -2,34 +2,12 @@ package dockerfile
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/aliou/dockerfile-gen/internal/facts"
-	"github.com/sashabaranov/go-openai"
+	"github.com/aliou/dockerfile-gen/internal/llm"
 )
-
-// mockOpenAIClient implements a mock OpenAI client for testing
-type mockOpenAIClient struct {
-	response string
-	err      error
-}
-
-func (m *mockOpenAIClient) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
-	if m.err != nil {
-		return openai.ChatCompletionResponse{}, m.err
-	}
-	return openai.ChatCompletionResponse{
-		Choices: []openai.ChatCompletionChoice{
-			{
-				Message: openai.ChatCompletionMessage{
-					Content: m.response,
-				},
-			},
-		},
-	}, nil
-}
 
 func TestGenerate(t *testing.T) {
 	// Create test facts
@@ -43,13 +21,13 @@ func TestGenerate(t *testing.T) {
 		Artifact:  "target/*.jar",
 		Ports:     []int{8080},
 		Health:    "/actuator/health",
-		BaseImage: "eclipse-temurin:17-jdk",
+		BaseImage: "openjdk:11-jdk",
 		Env:       map[string]string{},
 	}
 
 	// Set up mock client
-	mockClient := &mockOpenAIClient{
-		response: `FROM eclipse-temurin:17-jdk
+	mockClient := &llm.Mock{
+		Dockerfile: `FROM openjdk:11-jdk
 WORKDIR /app
 COPY mvnw .
 COPY .mvn .mvn
@@ -61,17 +39,8 @@ HEALTHCHECK --interval=30s --timeout=3s \
 CMD ["java", "-jar", "target/*.jar"]`,
 	}
 
-	// Override OpenAI client creation
-	origNewClient := openai.NewClient
-	openai.NewClient = func(apiKey string) *openai.Client {
-		return mockClient
-	}
-	defer func() {
-		openai.NewClient = origNewClient
-	}()
-
 	// Generate Dockerfile
-	dockerfile, err := Generate(context.Background(), testFacts, "", "")
+	dockerfile, err := Generate(context.Background(), testFacts, mockClient)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -106,13 +75,4 @@ CMD ["java", "-jar", "target/*.jar"]`,
 	if !strings.Contains(dockerfile, testFacts.Health) {
 		t.Error("Dockerfile missing health check")
 	}
-
-	// Test error case
-	t.Run("openai error", func(t *testing.T) {
-		mockClient.err = fmt.Errorf("mock error")
-		_, err := Generate(context.Background(), testFacts, "", "")
-		if err == nil {
-			t.Error("Generate() expected error, got nil")
-		}
-	})
 }

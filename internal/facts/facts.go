@@ -10,13 +10,8 @@ import (
 	"regexp"
 
 	"github.com/aliou/dockerfile-gen/internal/detect"
-	"github.com/sashabaranov/go-openai"
+	"github.com/aliou/dockerfile-gen/internal/llm"
 )
-
-// OpenAIClient defines the interface for OpenAI API calls
-type OpenAIClient interface {
-	CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
-}
 
 // Facts represents the detected facts about a technology stack
 type Facts struct {
@@ -40,13 +35,13 @@ func Infer(ctx context.Context, fsys fs.FS, rule detect.Rule) (Facts, error) {
 	if apiKey == "" {
 		return Facts{}, fmt.Errorf("OPENAI_API_KEY is required")
 	}
-	client := openai.NewClient(apiKey)
+	client := llm.NewClient(apiKey)
 
 	return InferWithClient(ctx, fsys, rule, client)
 }
 
-// InferWithClient analyzes the project using the provided OpenAI client
-func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.Rule, client OpenAIClient) (Facts, error) {
+// InferWithClient analyzes the project using the provided client
+func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.Rule, client llm.Client) (Facts, error) {
 	// Get relevant snippets
 	snippets, err := getSnippets(fsys)
 	if err != nil {
@@ -56,23 +51,15 @@ func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.Rule, client O
 	// Build facts prompt
 	prompt := buildFactsPrompt(snippets)
 
-	// Call OpenAI to analyze facts
-	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: openai.GPT4,
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: prompt,
-			},
-		},
-	})
+	// Call LLM to analyze facts
+	resp, err := client.Chat(ctx, prompt)
 	if err != nil {
-		return Facts{}, fmt.Errorf("openai call failed: %w", err)
+		return Facts{}, fmt.Errorf("llm call failed: %w", err)
 	}
 
 	// Parse response as JSON
 	var facts Facts
-	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &facts); err != nil {
+	if err := json.Unmarshal([]byte(resp), &facts); err != nil {
 		return Facts{}, fmt.Errorf("parse facts json: %w", err)
 	}
 

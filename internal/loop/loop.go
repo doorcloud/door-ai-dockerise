@@ -8,46 +8,40 @@ import (
 	"github.com/aliou/dockerfile-gen/internal/detect"
 	"github.com/aliou/dockerfile-gen/internal/dockerfile"
 	"github.com/aliou/dockerfile-gen/internal/facts"
+	"github.com/aliou/dockerfile-gen/internal/llm"
 	"github.com/aliou/dockerfile-gen/internal/verify"
 )
 
-const maxRetries = 3
-
-// Run executes the Dockerfile generation loop:
-// 1. Infer facts about the project
-// 2. Generate Dockerfile
-// 3. Verify the Dockerfile
-// 4. If verification fails, retry with error feedback
-func Run(ctx context.Context, path fs.FS) (string, error) {
-	// Get facts about the project
-	rule := detect.Rule{
-		Name: "spring-boot",
-		Tool: "maven",
+// Run executes the Dockerfile generation loop
+func Run(ctx context.Context, fsys fs.FS, client llm.Client) (string, error) {
+	// Detect project type
+	rule, err := detect.Detect(fsys)
+	if err != nil {
+		return "", fmt.Errorf("detect project: %w", err)
 	}
 
-	projectFacts, err := facts.Infer(ctx, path, rule)
+	// Infer facts about the project
+	facts, err := facts.InferWithClient(ctx, fsys, rule, client)
 	if err != nil {
 		return "", fmt.Errorf("infer facts: %w", err)
 	}
 
-	var lastError string
-	var lastDockerfile string
-	for i := 0; i < maxRetries; i++ {
-		// Generate Dockerfile with previous error feedback
-		df, err := dockerfile.Generate(ctx, projectFacts, lastDockerfile, lastError)
+	// Try generating and verifying up to 3 times
+	var lastError error
+	for i := 0; i < 3; i++ {
+		// Generate Dockerfile
+		df, err := dockerfile.Generate(ctx, facts, client)
 		if err != nil {
 			return "", fmt.Errorf("generate dockerfile: %w", err)
 		}
 
 		// Verify the Dockerfile
-		err = verify.Verify(ctx, path, df)
-		if err == nil {
+		if err := verify.Verify(ctx, fsys, df); err == nil {
 			return df, nil // Success!
+		} else {
+			lastError = err
 		}
-
-		lastError = err.Error()
-		lastDockerfile = df
 	}
 
-	return "", fmt.Errorf("failed after %d attempts: %s", maxRetries, lastError)
+	return "", fmt.Errorf("failed after 3 attempts: %v", lastError)
 }

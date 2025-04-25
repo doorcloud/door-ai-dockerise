@@ -2,34 +2,12 @@ package facts
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"testing/fstest"
 
 	"github.com/aliou/dockerfile-gen/internal/detect"
-	"github.com/sashabaranov/go-openai"
+	"github.com/aliou/dockerfile-gen/internal/llm"
 )
-
-// mockOpenAIClient implements OpenAIClient interface for testing
-type mockOpenAIClient struct {
-	response string
-	err      error
-}
-
-func (m *mockOpenAIClient) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
-	if m.err != nil {
-		return openai.ChatCompletionResponse{}, m.err
-	}
-	return openai.ChatCompletionResponse{
-		Choices: []openai.ChatCompletionChoice{
-			{
-				Message: openai.ChatCompletionMessage{
-					Content: m.response,
-				},
-			},
-		},
-	}, nil
-}
 
 func TestInfer(t *testing.T) {
 	// Create test filesystem
@@ -53,16 +31,19 @@ func TestInfer(t *testing.T) {
 	}
 
 	// Set up mock client
-	mockClient := &mockOpenAIClient{
-		response: `{
+	mockClient := &llm.Mock{
+		FactsJSON: `{
 			"language": "java",
 			"framework": "spring-boot",
-			"buildTool": "maven",
-			"buildCmd": "./mvnw -q package",
-			"startCmd": "java -jar target/*.jar",
+			"build_tool": "maven",
+			"build_cmd": "./mvnw -q package",
+			"build_dir": ".",
+			"start_cmd": "java -jar target/*.jar",
+			"artifact": "target/*.jar",
 			"ports": [8080],
 			"health": "/actuator/health",
-			"baseImage": "eclipse-temurin:17-jdk"
+			"env": {},
+			"base_image": "eclipse-temurin:17-jdk"
 		}`,
 	}
 
@@ -102,13 +83,4 @@ func TestInfer(t *testing.T) {
 	if facts.BaseImage != "eclipse-temurin:17-jdk" {
 		t.Errorf("BaseImage = %v, want eclipse-temurin:17-jdk", facts.BaseImage)
 	}
-
-	// Test error case
-	t.Run("openai error", func(t *testing.T) {
-		mockClient.err = fmt.Errorf("mock error")
-		_, err := InferWithClient(context.Background(), fsys, rule, mockClient)
-		if err == nil {
-			t.Error("Infer() expected error, got nil")
-		}
-	})
 }

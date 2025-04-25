@@ -3,40 +3,24 @@ package dockerfile
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/aliou/dockerfile-gen/internal/facts"
-	"github.com/sashabaranov/go-openai"
+	"github.com/aliou/dockerfile-gen/internal/llm"
 )
 
 // Generate creates a Dockerfile based on the provided facts
-func Generate(ctx context.Context, facts facts.Facts, lastDockerfile string, lastError string) (string, error) {
+func Generate(ctx context.Context, facts facts.Facts, client llm.Client) (string, error) {
 	// Build the prompt for Dockerfile generation
-	prompt := buildDockerfilePrompt(facts, lastDockerfile, lastError)
+	prompt := buildDockerfilePrompt(facts, "", "")
 
-	// Initialize OpenAI client
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return "", fmt.Errorf("OPENAI_API_KEY is required")
-	}
-	client := openai.NewClient(apiKey)
-
-	// Call OpenAI to generate Dockerfile
-	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: openai.GPT4,
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: prompt,
-			},
-		},
-	})
+	// Call LLM to generate Dockerfile
+	resp, err := client.Chat(ctx, prompt)
 	if err != nil {
-		return "", fmt.Errorf("openai call failed: %w", err)
+		return "", fmt.Errorf("llm call failed: %w", err)
 	}
 
-	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
+	return strings.TrimSpace(resp), nil
 }
 
 // buildDockerfilePrompt creates the prompt for Dockerfile generation
