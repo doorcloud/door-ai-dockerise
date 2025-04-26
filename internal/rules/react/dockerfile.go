@@ -35,14 +35,21 @@ RUN if jq -e '.scripts.start' < package.json >/dev/null; then \
       npm install --silent --global serve; \
     fi
 
-EXPOSE 3000
-CMD ["sh","-c","if jq -e '.scripts.start' < package.json >/dev/null; then npm run start; else serve -s build -l 3000; fi"]
+# Detect port from start script or use default
+RUN PORT=$(jq -r '.scripts.start' package.json | grep -oE '--port[ =]?[0-9]+|-p[ =]?[0-9]+' | grep -oE '[0-9]+' || echo "3000") && \
+    echo "Detected port: $PORT" && \
+    echo "export PORT=$PORT" > /app/port.sh
+
+EXPOSE $PORT
+CMD ["sh","-c",". /app/port.sh && if jq -e '.scripts.start' < package.json >/dev/null; then npm run start; else serve -s build -l $PORT; fi"]
 
 # runtime
 FROM nginx:alpine
 COPY --from=builder /app/build /usr/share/nginx/html
-EXPOSE {{index .Ports 0}}
-{{if .Health}}HEALTHCHECK CMD curl -f http://localhost:{{index .Ports 0}}{{.Health}} || exit 1{{end}}`))
+EXPOSE $PORT
+# install curl if missing
+RUN command -v curl >/dev/null || (apk update && apk add --no-cache curl && rm -rf /var/cache/apk/*)
+HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:$PORT/ || exit 1`))
 
 // DockerfileGenerator implements rules.RuleWithDockerfile.
 type DockerfileGenerator struct{}
