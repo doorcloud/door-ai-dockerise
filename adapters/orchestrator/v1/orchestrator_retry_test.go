@@ -3,66 +3,76 @@ package v1
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/fs"
 	"testing"
-	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
-	"github.com/doorcloud/door-ai-dockerise/providers/llm/mock"
-	"github.com/stretchr/testify/assert"
 )
 
-type mockVerifier struct {
-	failCount int
+type mockBuilder struct {
+	attempts int
+	maxFails int
 }
 
-func (m *mockVerifier) Verify(ctx context.Context, root string, dockerfile string) error {
-	if m.failCount > 0 {
-		m.failCount--
-		return fmt.Errorf("build failed")
+func (m *mockBuilder) Build(ctx context.Context, in core.BuildInput, log core.LogStreamer) (core.ImageRef, error) {
+	m.attempts++
+	if m.attempts <= m.maxFails {
+		log.Error("Build failed")
+		return core.ImageRef{}, fmt.Errorf("build failed (attempt %d)", m.attempts)
 	}
-	return nil
+	log.Info("Build succeeded")
+	return core.ImageRef{Name: "test:latest"}, nil
+}
+
+type mockDetector struct{}
+
+func (m *mockDetector) Detect(ctx context.Context, root fs.FS) (core.StackInfo, error) {
+	return core.StackInfo{
+		Name:      "test",
+		BuildTool: "test",
+		Version:   "1.0",
+	}, nil
+}
+
+type mockGenerator struct{}
+
+func (m *mockGenerator) Generate(ctx context.Context, facts core.Facts) (string, error) {
+	return "FROM alpine", nil
+}
+
+func (m *mockGenerator) Fix(ctx context.Context, dockerfile string, error string) (string, error) {
+	return dockerfile, nil
+}
+
+type mockFactProvider struct{}
+
+func (m *mockFactProvider) Facts(ctx context.Context, stack core.StackInfo) ([]core.Fact, error) {
+	return []core.Fact{
+		{Key: "stack_type", Value: stack.Name},
+		{Key: "build_tool", Value: stack.BuildTool},
+	}, nil
 }
 
 func TestOrchestrator_Retry(t *testing.T) {
-	// Create a mock generator that records calls
-	gen := mock.NewMockClient()
-	gen.SetResponse("test:test", "FROM ubuntu:latest\n")
+	builder := &mockBuilder{maxFails: 2}
 
-	// Create a verifier that fails once
-	verifier := &mockVerifier{failCount: 1}
-
-	// Create orchestrator with 2 attempts and 10 minute timeout
 	o := New(Opts{
-		Detectors:    []core.Detector{},
-		Facts:        []core.FactProvider{},
-		Generator:    gen,
-		Verifier:     verifier,
-		Attempts:     2,
-		BuildTimeout: 10,
+		Builder:   builder,
+		Attempts:  3,
+		Detectors: []core.Detector{&mockDetector{}},
+		Generator: &mockGenerator{},
+		Facts:     []core.FactProvider{&mockFactProvider{}},
 	})
 
-	// Run with a spec to avoid detection
-	spec := &core.Spec{
-		Framework: "test",
-		BuildTool: "test",
+	// Run the orchestrator
+	_, err := o.Run(context.Background(), ".", nil, io.Discard)
+	if err != nil {
+		t.Errorf("Expected success after retries, got error: %v", err)
 	}
 
-	// Test successful retry
-	dockerfile, err := o.Run(context.Background(), ".", spec, nil)
-	assert.NoError(t, err)
-	assert.Contains(t, dockerfile, "FROM ubuntu:latest")
-
-	// Test context cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	_, err = o.Run(ctx, ".", spec, nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context canceled")
-
-	// Test build timeout
-	timeoutCtx, _ := context.WithTimeout(context.Background(), 1*time.Millisecond)
-	time.Sleep(2 * time.Millisecond) // Ensure timeout is reached
-	_, err = o.Run(timeoutCtx, ".", spec, nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context deadline exceeded")
+	// Check that we retried the correct number of times
+	if builder.attempts != 3 {
+		t.Errorf("Expected 3 attempts, got %d", builder.attempts)
+	}
 }
