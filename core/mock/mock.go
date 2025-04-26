@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"io/fs"
+	"strings"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
@@ -65,7 +66,7 @@ func (m *MockLLM) GatherFacts(ctx context.Context, fsys fs.FS, stack core.StackI
 
 // GenerateDockerfile implements the ChatCompletion interface
 func (m *MockLLM) GenerateDockerfile(ctx context.Context, facts core.Facts) (string, error) {
-	key := facts.StackType + ":" + facts.BuildTool
+	key := facts.StackType
 	if response, ok := m.Responses[key]; ok {
 		return response, nil
 	}
@@ -73,9 +74,19 @@ func (m *MockLLM) GenerateDockerfile(ctx context.Context, facts core.Facts) (str
 }
 
 func (m *MockLLM) Complete(ctx context.Context, messages []core.Message) (string, error) {
-	// For testing, just return the last message content
-	if len(messages) > 0 {
-		return messages[len(messages)-1].Content, nil
+	// Extract stack type from messages
+	for _, msg := range messages {
+		if msg.Role == "user" && strings.Contains(msg.Content, "Stack type:") {
+			lines := strings.Split(msg.Content, "\n")
+			for _, line := range lines {
+				if strings.HasPrefix(line, "Stack type:") {
+					stackType := strings.TrimSpace(strings.TrimPrefix(line, "Stack type:"))
+					if response, ok := m.Responses[stackType]; ok {
+						return response, nil
+					}
+				}
+			}
+		}
 	}
 	return "FROM ubuntu:latest\n", nil
 }

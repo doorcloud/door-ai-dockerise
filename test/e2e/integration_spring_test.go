@@ -7,6 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
+	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
+	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
+	"github.com/doorcloud/door-ai-dockerise/adapters/verifiers"
+	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
 	"github.com/stretchr/testify/assert"
 )
@@ -77,8 +83,16 @@ public class DemoApplication {
 }`), 0644)
 	assert.NoError(t, err)
 
+	// Create mock LLM
+	mockLLM := mock.NewMockLLM()
+
 	// Create pipeline
-	p := pipeline.New(nil, nil, nil, nil)
+	p := pipeline.New(
+		detectors.DefaultDetectors(),
+		[]core.Generator{generate.NewLLM(mockLLM)},
+		[]core.Verifier{verifiers.NewDocker()},
+		[]core.FactProvider{facts.NewStatic()},
+	)
 
 	// Create log recorder
 	reader, streamer := NewRecorder()

@@ -30,7 +30,7 @@ func (d ReactDetector) Detect(fsys fs.FS) bool {
 		}
 		if !d.IsDir() && (filepath.Ext(path) == ".jsx" || filepath.Ext(path) == ".tsx" || filepath.Ext(path) == ".js") {
 			content, err := fs.ReadFile(fsys, path)
-			if err == nil && strings.Contains(string(content), "import React") {
+			if err == nil && (strings.Contains(string(content), "import React") || strings.Contains(string(content), "react-scripts")) {
 				hasReactFiles = true
 				return fs.SkipDir
 			}
@@ -38,5 +38,5 @@ func (d ReactDetector) Detect(fsys fs.FS) bool {
 		return nil
 	})
 
-	return hasReactFiles
+	return hasReactFiles || strings.Contains(string(pkgJson), `"react-scripts"`)
 }
