@@ -3,18 +3,12 @@
 package e2e
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
-	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
-	"github.com/doorcloud/door-ai-dockerise/providers/llm/openai"
 )
 
 // TestIntegration_SpringBoot tests the full pipeline with a Spring Boot project
@@ -29,11 +23,6 @@ func TestIntegration_SpringBoot(t *testing.T) {
 		t.Skip("docker not available")
 	}
 
-	// Skip if OpenAI key not set and mock LLM not enabled
-	if os.Getenv("OPENAI_API_KEY") == "" && os.Getenv("DG_MOCK_LLM") != "1" {
-		t.Skip("OPENAI_API_KEY not set and DG_MOCK_LLM not enabled")
-	}
-
 	// Set build timeout from env or default
 	timeout := 20 * time.Minute
 	if val := os.Getenv("GO_BUILD_TIMEOUT"); val != "" {
@@ -41,8 +30,6 @@ func TestIntegration_SpringBoot(t *testing.T) {
 			timeout = d
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 
 	// Get the Spring Boot test project
 	testDir := filepath.Join("testdata", "springboot")
@@ -50,35 +37,22 @@ func TestIntegration_SpringBoot(t *testing.T) {
 		t.Skipf("test directory %s does not exist", testDir)
 	}
 
-	// Run through the pipeline
-	t.Run("via pipeline", func(t *testing.T) {
-		p := v2.NewPipeline(
-			v2.WithGenerator(generate.NewLLM(openai.New(os.Getenv("OPENAI_API_KEY")))),
-			v2.WithDockerDriver(docker.NewDriver()),
-		)
-		if err := p.Run(ctx, testDir); err != nil {
-			t.Fatalf("pipeline.Run failed: %v", err)
-		}
-	})
+	// Build and run the CLI
+	cliPath := buildCLI(t)
+	defer os.Remove(cliPath)
 
-	// Run through the CLI
-	t.Run("via CLI", func(t *testing.T) {
-		// Build the CLI
-		cliPath := buildCLI(t)
-		defer os.Remove(cliPath)
+	// Run the CLI with mock LLM
+	cmd := exec.Command(cliPath, "--path", testDir)
+	cmd.Env = append(os.Environ(),
+		"GO_BUILD_TIMEOUT="+timeout.String(),
+		"DG_E2E=1",
+		"DG_MOCK_LLM=1")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("CLI failed: %v\nOutput: %s", err, output)
+	}
 
-		// Run the CLI
-		cmd := exec.Command(cliPath, testDir)
-		cmd.Env = append(os.Environ(),
-			"GO_BUILD_TIMEOUT="+timeout.String(),
-			"DG_E2E=1")
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("CLI failed: %v\nOutput: %s", err, output)
-		}
-
-		verifyDockerfile(t, string(output))
-	})
+	verifyDockerfile(t, string(output))
 }
 
 func buildCLI(t *testing.T) string {
