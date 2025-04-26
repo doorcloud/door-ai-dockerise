@@ -101,12 +101,21 @@ func hasBuildTool(m map[string]any) bool {
 }
 
 func (d *ReactDetector) Facts(fsys fs.FS) map[string]any {
+	// Check for package-lock.json
+	hasLockfile := false
+	if _, err := fs.Stat(fsys, "package-lock.json"); err == nil {
+		hasLockfile = true
+	}
+
 	return map[string]any{
-		"language":  "javascript",
-		"framework": "react",
-		"build_cmd": "npm ci && npm run build",
-		"artifact":  "build",
-		"ports":     []int{3000},
-		"base_hint": "node:18-alpine",
+		"language":     "javascript",
+		"framework":    "react",
+		"build_tool":   "npm",
+		"build_cmd":    "npm ci && npm run build",
+		"start_cmd":    "serve -s build",
+		"artifact":     "build",
+		"ports":        []int{80},
+		"health":       "/",
+		"has_lockfile": hasLockfile,
 	}
 }

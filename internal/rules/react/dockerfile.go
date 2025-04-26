@@ -16,13 +16,14 @@ var tpl = template.Must(template.New("reactDockerfile").Parse(`# build stage
 FROM node:18-alpine AS build
 WORKDIR /app
 COPY . .
-RUN npm ci && npm run build
+{{if .HasLockfile}}RUN npm ci --silent{{else}}RUN npm install{{end}}
+RUN npm run build
 
 # runtime
 FROM nginx:alpine
 COPY --from=build /app/build /usr/share/nginx/html
 EXPOSE {{index .Ports 0}}
-HEALTHCHECK CMD wget -qO- http://localhost:{{index .Ports 0}}/ || exit 1`))
+{{if .Health}}HEALTHCHECK CMD curl -f http://localhost:{{index .Ports 0}}{{.Health}} || exit 1{{end}}`))
 
 // DockerfileGenerator implements rules.RuleWithDockerfile.
 type DockerfileGenerator struct{}

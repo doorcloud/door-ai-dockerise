@@ -41,6 +41,7 @@ func (d Detector) Facts(fsys fs.FS) map[string]any {
 			"start_command": "java -jar target/*.jar",
 			"artifact":      "target/*.jar",
 			"ports":         []int{8080},
+			"health":        "/actuator/health",
 		}
 	}
 
@@ -54,6 +55,7 @@ func (d Detector) Facts(fsys fs.FS) map[string]any {
 			"start_command": "java -jar build/libs/*.jar",
 			"artifact":      "build/libs/*.jar",
 			"ports":         []int{8080},
+			"health":        "/actuator/health",
 		}
 	}
 
@@ -67,6 +69,7 @@ func (d Detector) Facts(fsys fs.FS) map[string]any {
 			"start_command": "java -jar build/libs/*.jar",
 			"artifact":      "build/libs/*.jar",
 			"ports":         []int{8080},
+			"health":        "/actuator/health",
 		}
 	}
 
@@ -78,6 +81,7 @@ func (d Detector) Facts(fsys fs.FS) map[string]any {
 		"start_command": "java -jar target/*.jar",
 		"artifact":      "target/*.jar",
 		"ports":         []int{8080},
+		"health":        "/actuator/health",
 	}
 }
 
@@ -124,5 +128,6 @@ func (r Rule) Facts(fsys fs.FS) map[string]any {
 		"start_cmd":  "java -jar target/*.jar",
 		"artifact":   "target/*.jar",
 		"ports":      []int{8080},
+		"health":     "/actuator/health",
 	}
 }

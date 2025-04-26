@@ -79,6 +79,7 @@ func TestFacts(t *testing.T) {
 				"start_cmd":  "java -jar target/*.jar",
 				"artifact":   "target/*.jar",
 				"ports":      []int{8080},
+				"health":     "/actuator/health",
 			},
 		},
 		{
@@ -92,6 +93,7 @@ func TestFacts(t *testing.T) {
 				"start_cmd":  "java -jar target/*.jar",
 				"artifact":   "target/*.jar",
 				"ports":      []int{8080},
+				"health":     "/actuator/health",
 			},
 		},
 	}

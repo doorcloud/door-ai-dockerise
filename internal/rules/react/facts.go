@@ -32,7 +32,7 @@ Extract the following facts about this React application:
 1. build_tool: npm or yarn
 2. build_cmd: the command to build the static site
 3. ports: array of ports to expose (default [80])
-4. health: health check endpoint (default "/")
+4. health: the best HTTP health-check path for this app (empty if unknown)
 
 Return a JSON object with these fields.`, formatDeps(deps))
 
