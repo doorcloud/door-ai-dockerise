@@ -13,7 +13,7 @@ func (FactsDetector) Name() string {
 }
 
 func (FactsDetector) Detect(fsys fs.FS) bool {
-	return Detector{}.Detect(fsys)
+	return (&ReactDetector{}).Detect(fsys)
 }
 
 func (FactsDetector) Facts(fsys fs.FS) map[string]any {

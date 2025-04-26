@@ -17,12 +17,18 @@ func TestReactIntegration(t *testing.T) {
 		t.Skip("Skipping integration test; set DG_E2E=1 to run")
 	}
 
+	// Get the absolute path to the workspace
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Use local fixture
-	repo := filepath.Join("test", "e2e", "fixtures", "react-min")
+	repo := filepath.Join(wd, "..", "..", "test", "e2e", "fixtures", "react-min")
+	fsys := os.DirFS(repo)
 
 	// Run the Dockerfile generation loop
 	ctx := context.Background()
-	fsys := os.DirFS(repo)
 	client := newTestClient(t)
 
 	dockerfile, err := loop.Run(ctx, fsys, client)

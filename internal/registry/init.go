@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	Register(&react.Detector{})
+	Register(&react.ReactDetector{})
 	Register(&react.FactsDetector{})
 	Register(&react.DockerfileGenerator{})
 	Register(&springboot.Detector{})

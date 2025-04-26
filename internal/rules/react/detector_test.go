@@ -65,8 +65,7 @@ func TestReactDetector(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := tt.setup(t)
-			detected, err := ReactDetector{}.Detect(os.DirFS(dir))
-			require.NoError(t, err)
+			detected := (&ReactDetector{}).Detect(os.DirFS(dir))
 			assert.Equal(t, tt.expected, detected)
 		})
 	}

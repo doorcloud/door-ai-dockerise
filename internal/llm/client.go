@@ -33,19 +33,29 @@ type OpenAIClient struct {
 	client *openai.Client
 }
 
+const defaultModel = "gpt-3.5-turbo"
+
+func model() string {
+	if m := os.Getenv("DG_LLM_MODEL"); m != "" {
+		return m
+	}
+	return defaultModel
+}
+
 // Chat implements the Client interface for OpenAIClient
-func (c *OpenAIClient) Chat(prompt string, model string) (string, error) {
-	if model == "" {
-		model = os.Getenv("DG_LLM_MODEL")
-		if model == "" {
-			model = openai.GPT4
-		}
+func (c *OpenAIClient) Chat(prompt string, modelName string) (string, error) {
+	if modelName == "" {
+		modelName = model()
+	}
+
+	if modelName == "" {
+		modelName = openai.GPT4
 	}
 
 	resp, err := c.client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
-			Model: model,
+			Model: modelName,
 			Messages: []openai.ChatCompletionMessage{
 				{
 					Role:    openai.ChatMessageRoleUser,

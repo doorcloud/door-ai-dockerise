@@ -25,6 +25,10 @@ func runCommand(dir string, name string, args ...string) error {
 }
 
 func newTestClient(t *testing.T) llm.Client {
+	if os.Getenv("DG_E2E") == "1" {
+		return &llm.MockClient{}
+	}
+
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Fatal("OPENAI_API_KEY environment variable is not set")

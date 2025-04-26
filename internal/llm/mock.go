@@ -12,8 +12,22 @@ type MockClient struct{}
 
 // Chat implements the Client interface for MockClient
 func (c *MockClient) Chat(prompt string, model string) (string, error) {
-	// Get the fixture path based on the model
-	fixturePath := filepath.Join("testdata", "fixtures", model, "response.json")
+	// Get the workspace root
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("error getting working directory: %v", err)
+	}
+
+	// Determine fixture path based on model
+	var fixturePath string
+	switch model {
+	case "dockerfile":
+		fixturePath = filepath.Join(wd, "testdata", "fixtures", "dockerfile", "response.json")
+	case "facts":
+		fixturePath = filepath.Join(wd, "testdata", "fixtures", "facts", "response.json")
+	default:
+		return "", fmt.Errorf("unsupported model: %s", model)
+	}
 
 	// Read fixture file
 	data, err := os.ReadFile(fixturePath)

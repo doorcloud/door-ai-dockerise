@@ -4,89 +4,86 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"path/filepath"
-	"strings"
 )
 
-// ReactDetector implements types.Detector.
+// ReactDetector implements types.Rule.
 type ReactDetector struct{}
 
 func (ReactDetector) Name() string {
 	return "react"
 }
 
-func (ReactDetector) Detect(fsys fs.FS) (bool, error) {
+// Detect returns true if the project is a React application
+func (d *ReactDetector) Detect(fsys fs.FS) bool {
 	var foundReact, foundBuildTool bool
-	fmt.Println("Starting React detection...")
 
-	err := fs.WalkDir(fsys, ".", func(path string, e fs.DirEntry, err error) error {
+	// Walk through the project directory
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		// Skip errors and continue walking
 		if err != nil {
-			fmt.Printf("Error walking path %s: %v\n", path, err)
-			return nil
-		}
-		if e.IsDir() {
 			return nil
 		}
 
-		// Count directory depth (excluding filename)
-		dirPath := filepath.Dir(path)
-		if dirPath == "." {
-			dirPath = ""
-		}
-		depth := len(strings.Split(dirPath, string(filepath.Separator)))
-		fmt.Printf("Checking path: %s (depth: %d)\n", path, depth)
-
-		if depth > 3 {
-			fmt.Printf("Skipping path %s - too deep (depth: %d)\n", path, depth)
-			return fs.SkipDir
+		// Skip directories
+		if d.IsDir() {
+			// Skip node_modules
+			if d.Name() == "node_modules" {
+				return fs.SkipDir
+			}
+			return nil
 		}
 
-		if strings.EqualFold(filepath.Base(path), "package.json") {
+		// Check for package.json
+		if d.Name() == "package.json" {
 			fmt.Printf("Found package.json at %s\n", path)
-			b, err := fs.ReadFile(fsys, path)
+			data, err := fs.ReadFile(fsys, path)
 			if err != nil {
-				fmt.Printf("Error reading package.json at %s: %v\n", path, err)
 				return nil
 			}
 
-			var p struct {
-				Dependencies    map[string]any `json:"dependencies"`
-				DevDependencies map[string]any `json:"devDependencies"`
+			var pkg struct {
+				Dependencies    map[string]string `json:"dependencies"`
+				DevDependencies map[string]string `json:"devDependencies"`
 			}
-			if err := json.Unmarshal(b, &p); err != nil {
-				fmt.Printf("Error parsing package.json at %s: %v\n", path, err)
+			if err := json.Unmarshal(data, &pkg); err != nil {
 				return nil
 			}
 
-			fmt.Printf("Dependencies: %v\n", p.Dependencies)
-			fmt.Printf("DevDependencies: %v\n", p.DevDependencies)
+			fmt.Printf("Dependencies: %v\n", pkg.Dependencies)
+			fmt.Printf("DevDependencies: %v\n", pkg.DevDependencies)
 
-			if hasPackage(p.Dependencies, "react") || hasPackage(p.DevDependencies, "react") {
+			// Check for React dependency
+			if _, ok := pkg.Dependencies["react"]; ok {
 				fmt.Println("Found react dependency")
 				foundReact = true
 			}
 
-			if hasBuildTool(p.Dependencies) || hasBuildTool(p.DevDependencies) {
+			// Check for build tool (npm)
+			if _, ok := pkg.Dependencies["react-scripts"]; ok {
+				fmt.Println("Found build tool")
+				foundBuildTool = true
+			} else if _, ok := pkg.Dependencies["vite"]; ok {
 				fmt.Println("Found build tool")
 				foundBuildTool = true
 			}
 
+			// If we found both, we can stop walking
 			if foundReact && foundBuildTool {
 				fmt.Println("Found both react and build tool, stopping search")
-				return fs.SkipDir
+				return fs.SkipAll
 			}
 		}
 
 		return nil
 	})
 
+	// Ignore any errors from WalkDir
 	if err != nil {
-		fmt.Printf("Error during directory walk: %v\n", err)
-		return false, err
+		return false
 	}
 
 	fmt.Printf("Detection result - foundReact: %v, foundBuildTool: %v\n", foundReact, foundBuildTool)
-	return foundReact && foundBuildTool, nil
+	return foundReact && foundBuildTool
 }
 
 func hasPackage(m map[string]any, pkg string) bool {
@@ -101,4 +98,15 @@ func hasBuildTool(m map[string]any) bool {
 		}
 	}
 	return false
+}
+
+func (d *ReactDetector) Facts(fsys fs.FS) map[string]any {
+	return map[string]any{
+		"language":  "javascript",
+		"framework": "react",
+		"build_cmd": "npm ci && npm run build",
+		"artifact":  "build",
+		"ports":     []int{3000},
+		"base_hint": "node:18-alpine",
+	}
 }

@@ -28,11 +28,11 @@ func (DockerfileGenerator) Name() string {
 }
 
 func (DockerfileGenerator) Detect(fsys fs.FS) bool {
-	return Detector{}.Detect(fsys)
+	return (&ReactDetector{}).Detect(fsys)
 }
 
 func (DockerfileGenerator) Facts(fsys fs.FS) map[string]any {
-	return Detector{}.Facts(fsys)
+	return (&ReactDetector{}).Facts(fsys)
 }
 
 func (DockerfileGenerator) Dockerfile(f *types.Facts) (string, error) {
