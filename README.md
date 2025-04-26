@@ -6,8 +6,12 @@ A Go-based tool for generating Dockerfiles with customizable configurations.
 
 ```
 .
+├── adapters/     # Adapters for different components (detectors, generators, etc.)
 ├── cmd/          # Main application entry points
-├── internal/     # Private application code
+├── core/         # Core interfaces and types
+├── drivers/      # External service drivers (Docker, etc.)
+├── pipeline/     # Pipeline implementation (v2)
+├── providers/    # External service providers (LLM, etc.)
 ├── pkg/          # Public library code
 └── test/         # Test files
 ```
@@ -16,6 +20,7 @@ A Go-based tool for generating Dockerfiles with customizable configurations.
 
 - Go 1.21 or later
 - Docker (for testing)
+- OpenAI API key (optional, for real API testing)
 
 ## Setup
 
@@ -62,6 +67,12 @@ To run tests with the real OpenAI API:
 OPENAI_API_KEY=your_key go test ./...
 ```
 
+### End-to-End Testing
+To run the full end-to-end test suite:
+```bash
+DG_MOCK_LLM=1 DG_E2E=1 go test -tags=integration ./test/e2e/...
+```
+
 ## Debugging
 
 The following environment variables can be used to enable various debug features:
@@ -70,16 +81,36 @@ The following environment variables can be used to enable various debug features
 - `DG_DEBUG=1` - Enable additional logging in docker-gen specific code paths
 - `OPENAI_LOG_LEVEL=debug` - Show raw HTTP traces for OpenAI API calls
 - `DG_E2E=1` - Enable the full end-to-end test suite (longer running tests)
+- `DG_MOCK_LLM=1` - Use mock LLM responses instead of real API calls
 
 These can be set in your `.env` file or directly in the shell before running commands.
 
 ## Supported Stacks
 
-Currently: Spring Boot (more coming, contributions welcome!)
+The tool currently supports generating Dockerfiles for:
+
+- React (Node.js-based)
+- Spring Boot (Java-based)
+
+Each stack is detected automatically based on project files and dependencies.
 
 ## Usage
 
-[Add specific usage instructions here]
+1. Basic usage:
+   ```bash
+   ./cmd/dockergen/dockergen <project-path>
+   ```
+
+2. With custom configuration:
+   ```bash
+   OPENAI_API_KEY=your_key ./cmd/dockergen/dockergen <project-path>
+   ```
+
+The tool will:
+1. Detect the project stack
+2. Gather relevant facts about the project
+3. Generate a Dockerfile
+4. Verify the Dockerfile can be built
 
 ## Contributing
 
