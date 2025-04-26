@@ -65,6 +65,12 @@ func (o *Orchestrator) Run(ctx context.Context, root string) error {
 		return fmt.Errorf("build failed: %v", err)
 	}
 
+	// Run the container to verify it works
+	port := 3000
+	if err := o.builder.Run(ctx, imageID, port); err != nil {
+		return fmt.Errorf("run failed: %v", err)
+	}
+
 	// Write the Dockerfile
 	if err := os.WriteFile(filepath.Join(root, "Dockerfile"), []byte(dockerfile.Content), 0644); err != nil {
 		return fmt.Errorf("failed to write Dockerfile: %v", err)
