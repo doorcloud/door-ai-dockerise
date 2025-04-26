@@ -16,20 +16,35 @@ type Orchestrator struct {
 	factProviders []core.FactProvider
 	generator     core.ChatCompletion
 	verifier      core.Verifier
+	log           core.Logger
+	attempts      int
 }
 
-// New creates a new Orchestrator instance
-func New(
-	detectors []core.Detector,
-	factProviders []core.FactProvider,
-	generator core.ChatCompletion,
-	verifier core.Verifier,
-) *Orchestrator {
+// Opts contains options for creating a new Orchestrator
+type Opts struct {
+	Detectors []core.Detector
+	Facts     []core.FactProvider
+	Generator core.ChatCompletion
+	Verifier  core.Verifier
+	Log       core.Logger
+	Attempts  int
+}
+
+// New creates a new Orchestrator
+func New(opts Opts) *Orchestrator {
 	return &Orchestrator{
-		detectors:     detectors,
-		factProviders: factProviders,
-		generator:     generator,
-		verifier:      verifier,
+		detectors:     opts.Detectors,
+		factProviders: opts.Facts,
+		generator:     opts.Generator,
+		verifier:      opts.Verifier,
+		log:           opts.Log,
+		attempts:      opts.Attempts,
+	}
+}
+
+func (o *Orchestrator) logf(format string, v ...any) {
+	if o.log != nil {
+		o.log.Printf(format, v...)
 	}
 }
 
@@ -40,6 +55,8 @@ func (o *Orchestrator) Run(
 	spec *core.Spec,
 	logs io.Writer,
 ) (string, error) {
+	o.logf("Starting Dockerfile generation for %s", root)
+
 	// 1. Get stack info from spec or detect
 	var stack core.StackInfo
 	var err error
@@ -58,23 +75,27 @@ func (o *Orchestrator) Run(
 			return "", fmt.Errorf("detection failed: %w", err)
 		}
 	}
+	o.logf("Detected stack: %s", stack.Name)
 
 	// 2. Gather facts
 	facts, err := o.gatherFacts(ctx, root, stack, logs)
 	if err != nil {
 		return "", fmt.Errorf("fact gathering failed: %w", err)
 	}
+	o.logf("Gathered facts for stack: %s", stack.Name)
 
 	// 3. Generate Dockerfile
 	dockerfile, err := o.generator.GenerateDockerfile(ctx, facts)
 	if err != nil {
 		return "", fmt.Errorf("generation failed: %w", err)
 	}
+	o.logf("Generated Dockerfile")
 
 	// 4. Verify with retry
 	if err := o.verifyWithRetry(ctx, root, dockerfile, logs); err != nil {
 		return "", fmt.Errorf("verification failed: %w", err)
 	}
+	o.logf("Verified Dockerfile")
 
 	return dockerfile, nil
 }
@@ -84,6 +105,7 @@ func (o *Orchestrator) detectStack(
 	root string,
 	logs io.Writer,
 ) (core.StackInfo, error) {
+	o.logf("Detecting stack...")
 	fsys := os.DirFS(root)
 	for _, d := range o.detectors {
 		stack, err := d.Detect(ctx, fsys)
