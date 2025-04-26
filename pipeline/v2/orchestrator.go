@@ -6,26 +6,30 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 )
 
 // Orchestrator coordinates the Dockerfile generation pipeline
 type Orchestrator struct {
 	detectors core.Detector
 	llm       core.ChatCompletion
-	verifier  core.Verifier
+	builder   *docker.Driver
 }
 
 // New creates a new Orchestrator
 func New(
-	detectors core.Detector,
 	llm core.ChatCompletion,
-	verifier core.Verifier,
 ) *Orchestrator {
 	return &Orchestrator{
-		detectors: detectors,
-		llm:       llm,
-		verifier:  verifier,
+		detectors: core.DetectorChain{
+			springboot.New(),
+			react.NewReactDetector(),
+		},
+		llm:     llm,
+		builder: docker.New(),
 	}
 }
 
@@ -55,9 +59,10 @@ func (o *Orchestrator) Run(ctx context.Context, root string) error {
 		return fmt.Errorf("LLM failed: %v", err)
 	}
 
-	// Verify the Dockerfile
-	if err := o.verifier.Verify(ctx, root, dockerfile.Content); err != nil {
-		return fmt.Errorf("verification failed: %v", err)
+	// Build and verify the Dockerfile
+	imageID, err := o.builder.Build(ctx, root, dockerfile.Content)
+	if err != nil {
+		return fmt.Errorf("build failed: %v", err)
 	}
 
 	// Write the Dockerfile
