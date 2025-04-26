@@ -2,81 +2,68 @@ package core
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"os"
 )
 
-// Orchestrator coordinates the Dockerfile generation process
-type Orchestrator interface {
-	// Run executes the complete Dockerfile generation workflow:
-	// 1. Detect stack type
-	// 2. Gather facts
-	// 3. Generate Dockerfile
-	// 4. Verify result
-	// Logs are streamed to the provided writer
-	Run(
-		ctx context.Context,
-		root string,
-		spec *Spec,
-		logs io.Writer,
-	) (string /*dockerfile*/, error)
-}
-
-// orchestrator implements the Orchestrator interface
-type orchestrator struct {
+// Orchestrator coordinates the detection, generation, and verification of Dockerfiles
+type Orchestrator struct {
 	detector  Detector
 	generator Generator
 	verifier  Verifier
 }
 
-// NewOrchestrator creates a new orchestrator instance
-func NewOrchestrator(
-	detector Detector,
-	generator Generator,
-	verifier Verifier,
-) Orchestrator {
-	return &orchestrator{
+// NewOrchestrator creates a new Orchestrator
+func NewOrchestrator(detector Detector, generator Generator, verifier Verifier) *Orchestrator {
+	return &Orchestrator{
 		detector:  detector,
 		generator: generator,
 		verifier:  verifier,
 	}
 }
 
-// Run implements the Orchestrator interface
-func (o *orchestrator) Run(
-	ctx context.Context,
-	root string,
-	spec *Spec,
-	logs io.Writer,
-) (string, error) {
+// Run orchestrates the Dockerfile generation process
+func (o *Orchestrator) Run(ctx context.Context, root string, spec *Spec) (string, error) {
+	// 1. Detect stack
 	var stack StackInfo
 	var err error
-
 	if spec != nil {
-		// Use the provided spec
 		stack = StackInfo{
 			Name:      spec.Framework,
 			BuildTool: spec.BuildTool,
 			Version:   spec.Version,
 		}
 	} else {
-		// Detect the stack
 		fsys := os.DirFS(root)
 		stack, err = o.detector.Detect(ctx, fsys)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to detect stack: %w", err)
 		}
 	}
 
-	// Generate the Dockerfile
-	dockerfile, err := o.generator.Generate(ctx, stack, nil)
+	// 2. Generate Dockerfile
+	facts := Facts{
+		StackType: stack.Name,
+		BuildTool: stack.BuildTool,
+	}
+	dockerfile, err := o.generator.Generate(ctx, facts)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to generate Dockerfile: %w", err)
 	}
 
-	// Verify the Dockerfile
+	// 3. Verify Dockerfile
 	if err := o.verifier.Verify(ctx, root, dockerfile); err != nil {
-		return "", err
+		// Try to fix the Dockerfile
+		newDockerfile, fixErr := o.generator.Fix(ctx, dockerfile, err.Error())
+		if fixErr != nil {
+			return "", fmt.Errorf("failed to fix Dockerfile: %w", fixErr)
+		}
+		dockerfile = newDockerfile
+
+		// Verify the fixed Dockerfile
+		if err := o.verifier.Verify(ctx, root, dockerfile); err != nil {
+			return "", fmt.Errorf("failed to verify fixed Dockerfile: %w", err)
+		}
 	}
 
 	return dockerfile, nil

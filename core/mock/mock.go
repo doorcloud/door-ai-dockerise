@@ -65,8 +65,17 @@ func (m *MockLLM) GatherFacts(ctx context.Context, fsys fs.FS, stack core.StackI
 
 // GenerateDockerfile implements the ChatCompletion interface
 func (m *MockLLM) GenerateDockerfile(ctx context.Context, facts core.Facts) (string, error) {
-	if dockerfile, ok := m.Responses[facts.StackType]; ok {
-		return dockerfile, nil
+	key := facts.StackType + ":" + facts.BuildTool
+	if response, ok := m.Responses[key]; ok {
+		return response, nil
 	}
-	return "", nil
+	return "FROM ubuntu:latest\n", nil
+}
+
+func (m *MockLLM) Complete(ctx context.Context, messages []core.Message) (string, error) {
+	// For testing, just return the last message content
+	if len(messages) > 0 {
+		return messages[len(messages)-1].Content, nil
+	}
+	return "FROM ubuntu:latest\n", nil
 }

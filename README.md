@@ -1,95 +1,77 @@
 # Dockerfile Generator
 
-A tool that automatically generates Dockerfiles for your applications by analyzing your codebase or using a provided specification.
+A tool to automatically generate Dockerfiles for your projects using AI.
 
-## Quick Start
-
-### Installation
+## Installation
 
 ```bash
 go install github.com/doorcloud/door-ai-dockerise/cmd/dockergen@latest
 ```
 
-### Usage
+## Usage
 
-There are two ways to use the tool:
+### Basic Usage
 
-1. **Spec-First Approach** (Recommended for known stacks)
-   ```bash
-   # Generate Dockerfile using a stack specification
-   dockergen --spec examples/spring-boot/stack.yaml
-   ```
+Generate a Dockerfile for a project in the current directory:
 
-2. **Code-First Approach** (For automatic detection)
-   ```bash
-   # Generate Dockerfile by analyzing your codebase
-   dockergen --path ./my-project
-   ```
-
-### Examples
-
-#### Spring Boot Example
-
-Create a `stack.yaml` file:
-```yaml
-language: java
-framework: springboot
-version: "3.2"
-buildTool: maven
-params:
-  port: "8080"
-  jdkVersion: "17"
-  buildArgs: "-DskipTests"
-  baseImage: "eclipse-temurin:17-jre-alpine"
-```
-
-Then run:
 ```bash
-dockergen --spec stack.yaml
+dockergen
 ```
 
-#### Node.js Example
+### Advanced Usage
 
-For a Node.js project, simply point to your project directory:
+Generate a Dockerfile for a specific project directory:
+
 ```bash
-dockergen --path ./my-node-app
+dockergen --path ./repo
 ```
 
-## Features
+Generate a Dockerfile using a specific LLM provider:
 
-- Automatic stack detection
-- Support for multiple frameworks and languages
-- Customizable through stack specifications
-- Dockerfile verification
-- Build and test the generated Dockerfile
+```bash
+# Using Ollama
+dockergen --path ./repo --llm ollama
 
-## Supported Stacks
+# Using OpenAI
+dockergen --spec stack.yaml --llm openai --verbose
+```
 
-- Spring Boot
-- Node.js
-- React
-- More coming soon...
+### Options
+
+- `--path`: Path to the project directory (default: ".")
+- `--spec`: Path to stack specification file (yaml/json)
+- `--llm`: LLM provider to use (openai|ollama) (default: "openai")
+- `--verbose`: Enable verbose logging
+- `--debug`: Enable debug logging
+
+## Configuration
+
+### OpenAI
+
+To use OpenAI, set the `OPENAI_API_KEY` environment variable:
+
+```bash
+export OPENAI_API_KEY=your-api-key
+```
+
+### Ollama
+
+Ollama should be running locally on the default port (11434).
 
 ## Development
 
-### Building from Source
+### Building
 
 ```bash
-git clone https://github.com/doorcloud/door-ai-dockerise
-cd door-ai-dockerise
 go build -o dockergen ./cmd/dockergen
 ```
 
-### Running Tests
+### Testing
 
 ```bash
 go test ./...
 ```
 
-## Contributing
-
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
+MIT 

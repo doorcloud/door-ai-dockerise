@@ -34,7 +34,8 @@ type Detector interface {
 
 // Generator generates a Dockerfile for a given stack
 type Generator interface {
-	Generate(ctx context.Context, stack StackInfo, facts []Fact) (string, error)
+	Generate(ctx context.Context, facts Facts) (string, error)
+	Fix(ctx context.Context, prevDockerfile string, buildErr string) (string, error)
 }
 
 // Verifier verifies that a generated file is valid
@@ -44,6 +45,7 @@ type Verifier interface {
 
 // ChatCompletion handles LLM interactions
 type ChatCompletion interface {
+	Complete(ctx context.Context, messages []Message) (string, error)
 	GatherFacts(ctx context.Context, fsys fs.FS, stack StackInfo) (Facts, error)
 	GenerateDockerfile(ctx context.Context, facts Facts) (string, error)
 }
@@ -75,4 +77,14 @@ type Facts struct {
 	StackType string
 	BuildTool string
 	// Add more fields as needed
+}
+
+// Fixer provides a method to fix a Dockerfile
+type Fixer interface {
+	Fix(ctx context.Context, prevDockerfile string, buildErr string) (string, error)
+}
+
+// DockerfileGen generates a Dockerfile
+type DockerfileGen interface {
+	Generator
 }

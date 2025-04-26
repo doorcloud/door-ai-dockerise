@@ -98,16 +98,31 @@ func (p *Pipeline) generateDockerfile(ctx context.Context, stack *core.StackInfo
 	results := make(chan string, len(p.generators))
 	errs := make(chan error, len(p.generators))
 
-	facts, err := p.factProvider.Facts(ctx, *stack)
+	// Get facts from provider
+	factSlice, err := p.factProvider.Facts(ctx, *stack)
 	if err != nil {
 		return "", err
+	}
+
+	// Convert []Fact to Facts struct
+	facts := core.Facts{
+		StackType: stack.Name,
+		BuildTool: stack.BuildTool,
+	}
+	for _, fact := range factSlice {
+		switch fact.Key {
+		case "stack_type":
+			facts.StackType = fact.Value
+		case "build_tool":
+			facts.BuildTool = fact.Value
+		}
 	}
 
 	for _, generator := range p.generators {
 		wg.Add(1)
 		go func(g core.Generator) {
 			defer wg.Done()
-			if dockerfile, err := g.Generate(ctx, *stack, facts); err == nil {
+			if dockerfile, err := g.Generate(ctx, facts); err == nil {
 				results <- dockerfile
 			} else {
 				errs <- err

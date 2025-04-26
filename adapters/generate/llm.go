@@ -2,6 +2,7 @@ package generate
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
@@ -23,18 +24,51 @@ func (g *LLMGenerator) GatherFacts(ctx context.Context, fsys fs.FS, stack core.S
 }
 
 // Generate implements the Generator interface
-func (g *LLMGenerator) Generate(ctx context.Context, stack core.StackInfo, facts []core.Fact) (string, error) {
-	// Convert facts to a format suitable for the LLM
-	llmFacts := core.Facts{
-		StackType: stack.Name,
-		BuildTool: stack.BuildTool,
+func (g *LLMGenerator) Generate(ctx context.Context, facts core.Facts) (string, error) {
+	// Convert facts to messages
+	messages := []core.Message{
+		{
+			Role:    "system",
+			Content: "Generate a Dockerfile for the given stack.",
+		},
+		{
+			Role:    "user",
+			Content: fmt.Sprintf("Stack type: %s\nBuild tool: %s", facts.StackType, facts.BuildTool),
+		},
 	}
 
-	// Generate Dockerfile using LLM
-	return g.llm.GenerateDockerfile(ctx, llmFacts)
+	// Get completion from LLM
+	response, err := g.llm.Complete(ctx, messages)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate Dockerfile: %w", err)
+	}
+
+	return response, nil
 }
 
 // GenerateDockerfile implements the ChatCompletion interface
 func (g *LLMGenerator) GenerateDockerfile(ctx context.Context, facts core.Facts) (string, error) {
 	return g.llm.GenerateDockerfile(ctx, facts)
+}
+
+func (g *LLMGenerator) Fix(ctx context.Context, prevDockerfile string, buildErr string) (string, error) {
+	// Convert error and previous Dockerfile to messages
+	messages := []core.Message{
+		{
+			Role:    "system",
+			Content: "Fix the Dockerfile based on the build error.",
+		},
+		{
+			Role:    "user",
+			Content: fmt.Sprintf("Previous Dockerfile:\n%s\n\nBuild error:\n%s", prevDockerfile, buildErr),
+		},
+	}
+
+	// Get completion from LLM
+	response, err := g.llm.Complete(ctx, messages)
+	if err != nil {
+		return "", fmt.Errorf("failed to fix Dockerfile: %w", err)
+	}
+
+	return response, nil
 }

@@ -16,8 +16,8 @@ import (
 	v1 "github.com/doorcloud/door-ai-dockerise/adapters/orchestrator/v1"
 	"github.com/doorcloud/door-ai-dockerise/adapters/spec/loader"
 	"github.com/doorcloud/door-ai-dockerise/core"
-	coremock "github.com/doorcloud/door-ai-dockerise/core/mock"
 	dockerdriver "github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	"github.com/doorcloud/door-ai-dockerise/providers/llm/factory"
 )
 
 func main() {
@@ -25,6 +25,8 @@ func main() {
 	path := flag.String("path", ".", "Path to the project directory")
 	specPath := flag.String("spec", "", "Path to stack spec file (yaml/json)")
 	debug := flag.Bool("debug", false, "Enable debug logging")
+	verbose := flag.Bool("verbose", true, "Enable verbose logging")
+	llmProvider := flag.String("llm", "openai", "LLM provider to use (openai|ollama)")
 	flag.Parse()
 
 	// Set debug mode if requested
@@ -36,6 +38,12 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
+	// Create logger
+	var logger core.Logger
+	if *verbose {
+		logger = log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+	}
+
 	// Load spec if provided
 	var spec *core.Spec
 	if *specPath != "" {
@@ -46,23 +54,31 @@ func main() {
 		}
 	}
 
+	// Create LLM provider
+	llm, err := factory.New(*llmProvider)
+	if err != nil {
+		log.Fatalf("Failed to create LLM provider: %v", err)
+	}
+
 	// Create the pipeline components
-	generator := generate.NewLLM(coremock.NewMockLLM())
+	generator := generate.NewLLM(llm)
 	verifier := docker.NewVerifierAdapter(dockerdriver.NewDriver())
 
 	// Create orchestrator with all components
-	o := v1.New(
-		[]core.Detector{
+	o := v1.New(v1.Opts{
+		Detectors: []core.Detector{
 			detectors.NewReact(),
 			springboot.NewSpringBootDetector(),
 			node.NewNodeDetector(),
 		},
-		[]core.FactProvider{
+		Facts: []core.FactProvider{
 			facts.NewStatic(),
 		},
-		generator,
-		verifier,
-	)
+		Generator: generator,
+		Verifier:  verifier,
+		Log:       logger,
+		Attempts:  3,
+	})
 
 	// Run the orchestrator
 	dockerfile, err := o.Run(ctx, *path, spec, os.Stdout)

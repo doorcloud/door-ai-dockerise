@@ -52,3 +52,33 @@ func (o *OpenAI) GenerateDockerfile(ctx context.Context, facts core.Facts) (stri
 
 	return resp.Choices[0].Message.Content, nil
 }
+
+// Complete implements the core.ChatCompletion interface
+func (o *OpenAI) Complete(ctx context.Context, messages []core.Message) (string, error) {
+	// Convert core.Message to openai.ChatCompletionMessage
+	openaiMessages := make([]openai.ChatCompletionMessage, len(messages))
+	for i, msg := range messages {
+		openaiMessages[i] = openai.ChatCompletionMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+	}
+
+	// Call OpenAI API
+	resp, err := o.client.CreateChatCompletion(
+		ctx,
+		openai.ChatCompletionRequest{
+			Model:    openai.GPT4,
+			Messages: openaiMessages,
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	// Return the first choice's content
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("no completion choices returned")
+	}
+	return resp.Choices[0].Message.Content, nil
+}

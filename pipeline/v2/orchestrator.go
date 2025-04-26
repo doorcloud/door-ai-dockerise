@@ -57,13 +57,27 @@ func (o *Orchestrator) Run(ctx context.Context, dir string) error {
 	}
 
 	// Gather facts about the stack
-	facts, err := o.factProvider.Facts(ctx, stack)
+	factSlice, err := o.factProvider.Facts(ctx, stack)
 	if err != nil {
 		return err
 	}
 
+	// Convert []Fact to Facts struct
+	facts := core.Facts{
+		StackType: stack.Name,
+		BuildTool: stack.BuildTool,
+	}
+	for _, fact := range factSlice {
+		switch fact.Key {
+		case "stack_type":
+			facts.StackType = fact.Value
+		case "build_tool":
+			facts.BuildTool = fact.Value
+		}
+	}
+
 	// Generate Dockerfile
-	dockerfile, err := o.generator.Generate(ctx, stack, facts)
+	dockerfile, err := o.generator.Generate(ctx, facts)
 	if err != nil {
 		return err
 	}

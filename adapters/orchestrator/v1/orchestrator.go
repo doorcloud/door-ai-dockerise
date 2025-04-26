@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
@@ -14,7 +13,7 @@ import (
 type Orchestrator struct {
 	detectors     []core.Detector
 	factProviders []core.FactProvider
-	generator     core.ChatCompletion
+	generator     core.DockerfileGen
 	verifier      core.Verifier
 	log           core.Logger
 	attempts      int
@@ -24,7 +23,7 @@ type Orchestrator struct {
 type Opts struct {
 	Detectors []core.Detector
 	Facts     []core.FactProvider
-	Generator core.ChatCompletion
+	Generator core.DockerfileGen
 	Verifier  core.Verifier
 	Log       core.Logger
 	Attempts  int
@@ -84,20 +83,46 @@ func (o *Orchestrator) Run(
 	}
 	o.logf("Gathered facts for stack: %s", stack.Name)
 
-	// 3. Generate Dockerfile
-	dockerfile, err := o.generator.GenerateDockerfile(ctx, facts)
+	// 3. Generate initial Dockerfile
+	dockerfile, err := o.generator.Generate(ctx, facts)
 	if err != nil {
 		return "", fmt.Errorf("generation failed: %w", err)
 	}
 	o.logf("Generated Dockerfile")
 
 	// 4. Verify with retry
-	if err := o.verifyWithRetry(ctx, root, dockerfile, logs); err != nil {
-		return "", fmt.Errorf("verification failed: %w", err)
-	}
-	o.logf("Verified Dockerfile")
+	var lastErr error
+	for i := 0; i < o.attempts; i++ {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
 
-	return dockerfile, nil
+		err := o.verifier.Verify(ctx, root, dockerfile)
+		if err == nil {
+			return dockerfile, nil
+		}
+		lastErr = err
+		o.logf("Verification failed (attempt %d/%d): %v", i+1, o.attempts, err)
+
+		if i < o.attempts-1 {
+			// Try to fix the Dockerfile
+			newDockerfile, fixErr := o.generator.Fix(ctx, dockerfile, err.Error())
+			if fixErr != nil {
+				o.logf("Failed to fix Dockerfile: %v", fixErr)
+				continue
+			}
+			dockerfile = newDockerfile
+			o.logf("Fixed Dockerfile, retrying verification")
+		}
+	}
+
+	if lastErr != nil {
+		return "", fmt.Errorf("verification failed after %d attempts: %w", o.attempts, lastErr)
+	}
+	return "", fmt.Errorf("verification failed after %d attempts", o.attempts)
 }
 
 func (o *Orchestrator) detectStack(
@@ -110,7 +135,9 @@ func (o *Orchestrator) detectStack(
 	for _, d := range o.detectors {
 		stack, err := d.Detect(ctx, fsys)
 		if err == nil && stack.Name != "" {
-			fmt.Fprintf(logs, "Detected stack: %s\n", stack.Name)
+			if logs != nil {
+				fmt.Fprintf(logs, "Detected stack: %s\n", stack.Name)
+			}
 			return stack, nil
 		}
 	}
@@ -128,7 +155,9 @@ func (o *Orchestrator) gatherFacts(
 	for _, p := range o.factProviders {
 		facts, err := p.Facts(ctx, stack)
 		if err != nil {
-			fmt.Fprintf(logs, "Warning: fact provider failed: %v\n", err)
+			if logs != nil {
+				fmt.Fprintf(logs, "Warning: fact provider failed: %v\n", err)
+			}
 			continue
 		}
 		// Convert []Fact to Facts
@@ -143,25 +172,4 @@ func (o *Orchestrator) gatherFacts(
 	}
 
 	return allFacts, nil
-}
-
-func (o *Orchestrator) verifyWithRetry(
-	ctx context.Context,
-	root string,
-	dockerfile string,
-	logs io.Writer,
-) error {
-	const maxRetries = 3
-	const retryDelay = time.Second
-
-	for i := 0; i < maxRetries; i++ {
-		if err := o.verifier.Verify(ctx, root, dockerfile); err == nil {
-			return nil
-		}
-		if i < maxRetries-1 {
-			fmt.Fprintf(logs, "Verification failed, retrying...\n")
-			time.Sleep(retryDelay)
-		}
-	}
-	return fmt.Errorf("verification failed after %d retries", maxRetries)
 }

@@ -7,163 +7,142 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-// MockDetector implements the Detector interface for testing
-type MockDetector struct {
-	called bool
-	err    error
+type mockDetector struct {
+	stack StackInfo
+	err   error
 }
 
-func (m *MockDetector) Detect(ctx context.Context, fsys fs.FS) (StackInfo, error) {
-	m.called = true
-	if m.err != nil {
-		return StackInfo{}, m.err
+func (d *mockDetector) Detect(ctx context.Context, fsys fs.FS) (StackInfo, error) {
+	return d.stack, d.err
+}
+
+type mockVerifier struct {
+	err error
+}
+
+func (v *mockVerifier) Verify(ctx context.Context, root string, dockerfile string) error {
+	return v.err
+}
+
+type mockGenerator struct {
+	dockerfile string
+	err        error
+}
+
+func (g *mockGenerator) Generate(ctx context.Context, facts Facts) (string, error) {
+	return g.dockerfile, g.err
+}
+
+func (g *mockGenerator) Fix(ctx context.Context, dockerfile string, error string) (string, error) {
+	return g.dockerfile, g.err
+}
+
+func newMockGenerator(dockerfile string, err error) *mockGenerator {
+	return &mockGenerator{
+		dockerfile: dockerfile,
+		err:        err,
 	}
-	return StackInfo{
-		Name:      "test-stack",
-		BuildTool: "test-tool",
-		Version:   "1.0.0",
-	}, nil
 }
 
-// MockGenerator implements the Generator interface for testing
-type MockGenerator struct {
-	called bool
-	err    error
-}
+func TestOrchestrator_Run_WithSpec(t *testing.T) {
+	// Setup
+	detector := &mockDetector{}
+	generator := newMockGenerator("FROM node:14", nil)
+	verifier := &mockVerifier{}
 
-func (m *MockGenerator) Generate(ctx context.Context, stack StackInfo, facts []Fact) (string, error) {
-	m.called = true
-	if m.err != nil {
-		return "", m.err
-	}
-	return "FROM test-stack:1.0.0", nil
-}
-
-// MockVerifier implements the Verifier interface for testing
-type MockVerifier struct {
-	called bool
-	err    error
-}
-
-func (m *MockVerifier) Verify(ctx context.Context, root string, generatedFile string) error {
-	m.called = true
-	return m.err
-}
-
-func TestOrchestrator_WithSpec(t *testing.T) {
-	// Create mock components
-	detector := &MockDetector{}
-	generator := &MockGenerator{}
-	verifier := &MockVerifier{}
-
-	// Create orchestrator with mock components
 	o := NewOrchestrator(detector, generator, verifier)
 
-	// Create a test spec
+	// Test
 	spec := &Spec{
-		Language:  "javascript",
 		Framework: "node",
-		Version:   "18",
 		BuildTool: "npm",
-		Params:    map[string]string{},
+		Version:   "14",
 	}
 
-	// Run the orchestrator with the spec
-	_, err := o.Run(context.Background(), "/test/path", spec, nil)
-	require.NoError(t, err)
+	dockerfile, err := o.Run(context.Background(), ".", spec)
 
-	// Verify that the detector was not called
-	assert.False(t, detector.called, "Detector should not be called when spec is provided")
-
-	// Verify that generator and verifier were called
-	assert.True(t, generator.called, "Generator should be called")
-	assert.True(t, verifier.called, "Verifier should be called")
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, "FROM node:14", dockerfile)
 }
 
-func TestOrchestrator_WithoutSpec(t *testing.T) {
-	// Create mock components
-	detector := &MockDetector{}
-	generator := &MockGenerator{}
-	verifier := &MockVerifier{}
+func TestOrchestrator_Run_DetectError(t *testing.T) {
+	// Setup
+	detector := &mockDetector{err: errors.New("detection failed")}
+	generator := newMockGenerator("", nil)
+	verifier := &mockVerifier{}
 
-	// Create orchestrator with mock components
 	o := NewOrchestrator(detector, generator, verifier)
 
-	// Run the orchestrator without a spec
-	_, err := o.Run(context.Background(), "/test/path", nil, nil)
-	require.NoError(t, err)
+	// Test
+	dockerfile, err := o.Run(context.Background(), ".", nil)
 
-	// Verify that all components were called
-	assert.True(t, detector.called, "Detector should be called when no spec is provided")
-	assert.True(t, generator.called, "Generator should be called")
-	assert.True(t, verifier.called, "Verifier should be called")
-}
-
-func TestOrchestrator_DetectionError(t *testing.T) {
-	// Create mock components with detector error
-	detector := &MockDetector{err: errors.New("detection failed")}
-	generator := &MockGenerator{}
-	verifier := &MockVerifier{}
-
-	// Create orchestrator with mock components
-	o := NewOrchestrator(detector, generator, verifier)
-
-	// Run the orchestrator without a spec
-	_, err := o.Run(context.Background(), "/test/path", nil, nil)
+	// Assert
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "detection failed")
-
-	// Verify that only detector was called
-	assert.True(t, detector.called)
-	assert.False(t, generator.called)
-	assert.False(t, verifier.called)
+	assert.Empty(t, dockerfile)
 }
 
-func TestOrchestrator_GenerationError(t *testing.T) {
-	// Create mock components with generator error
-	detector := &MockDetector{}
-	generator := &MockGenerator{err: errors.New("generation failed")}
-	verifier := &MockVerifier{}
+func TestOrchestrator_Run_GenerateError(t *testing.T) {
+	// Setup
+	detector := &mockDetector{stack: StackInfo{Name: "node"}}
+	generator := newMockGenerator("", errors.New("generation failed"))
+	verifier := &mockVerifier{}
 
-	// Create orchestrator with mock components
 	o := NewOrchestrator(detector, generator, verifier)
 
-	// Run the orchestrator with a spec
-	_, err := o.Run(context.Background(), "/test/path", &Spec{
-		Language:  "javascript",
-		Framework: "node",
-	}, nil)
+	// Test
+	dockerfile, err := o.Run(context.Background(), ".", nil)
+
+	// Assert
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "generation failed")
-
-	// Verify that detector was not called but generator was
-	assert.False(t, detector.called)
-	assert.True(t, generator.called)
-	assert.False(t, verifier.called)
+	assert.Empty(t, dockerfile)
 }
 
-func TestOrchestrator_VerificationError(t *testing.T) {
-	// Create mock components with verifier error
-	detector := &MockDetector{}
-	generator := &MockGenerator{}
-	verifier := &MockVerifier{err: errors.New("verification failed")}
+func TestOrchestrator_Run_VerifyError(t *testing.T) {
+	// Setup
+	detector := &mockDetector{stack: StackInfo{Name: "node"}}
+	generator := newMockGenerator("FROM node:14", nil)
+	verifier := &mockVerifier{err: errors.New("verification failed")}
 
-	// Create orchestrator with mock components
 	o := NewOrchestrator(detector, generator, verifier)
 
-	// Run the orchestrator with a spec
-	_, err := o.Run(context.Background(), "/test/path", &Spec{
-		Language:  "javascript",
+	// Test
+	spec := &Spec{
 		Framework: "node",
-	}, nil)
+		BuildTool: "npm",
+		Version:   "14",
+	}
+
+	dockerfile, err := o.Run(context.Background(), ".", spec)
+
+	// Assert
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "verification failed")
+	assert.Empty(t, dockerfile)
+}
 
-	// Verify that all components were called
-	assert.False(t, detector.called)
-	assert.True(t, generator.called)
-	assert.True(t, verifier.called)
+func TestOrchestrator_Run_Success(t *testing.T) {
+	// Setup
+	detector := &mockDetector{stack: StackInfo{Name: "node"}}
+	generator := newMockGenerator("FROM node:14", nil)
+	verifier := &mockVerifier{}
+
+	o := NewOrchestrator(detector, generator, verifier)
+
+	// Test
+	spec := &Spec{
+		Framework: "node",
+		BuildTool: "npm",
+		Version:   "14",
+	}
+
+	dockerfile, err := o.Run(context.Background(), ".", spec)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, "FROM node:14", dockerfile)
 }

@@ -97,6 +97,23 @@ root.render(
 	err = os.WriteFile(filepath.Join(srcDir, "index.js"), []byte(indexJS), 0644)
 	require.NoError(t, err)
 
+	// Create src/index.css
+	indexCSS := `body {
+		margin: 0;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+			'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+			sans-serif;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+
+	code {
+		font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+			monospace;
+	}`
+	err = os.WriteFile(filepath.Join(srcDir, "index.css"), []byte(indexCSS), 0644)
+	require.NoError(t, err)
+
 	// Create public/index.html
 	publicDir := filepath.Join(dir, "public")
 	err = os.MkdirAll(publicDir, 0755)
@@ -119,11 +136,14 @@ root.render(
 func buildDockerImage(t *testing.T, contextDir string, imageName string) error {
 	cmd := exec.Command("docker", "build", "-t", imageName, ".")
 	cmd.Dir = contextDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 func runDockerContainer(t *testing.T, imageName string) (string, error) {
 	cmd := exec.Command("docker", "run", "-d", "-p", "3000:3000", imageName)
+	cmd.Stderr = os.Stderr
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -132,9 +152,15 @@ func runDockerContainer(t *testing.T, imageName string) (string, error) {
 }
 
 func stopDockerContainer(t *testing.T, containerID string) error {
-	return exec.Command("docker", "stop", containerID).Run()
+	cmd := exec.Command("docker", "stop", containerID)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func removeDockerImage(t *testing.T, imageName string) error {
-	return exec.Command("docker", "rmi", imageName).Run()
+	cmd := exec.Command("docker", "rmi", "-f", imageName)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
