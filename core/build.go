@@ -16,6 +16,11 @@ type ImageRef struct {
 	Name string // e.g. doorai/gen:sha256-abcdef
 }
 
+// String returns the image name
+func (r ImageRef) String() string {
+	return r.Name
+}
+
 // BuildDriver defines the interface for building Docker images
 type BuildDriver interface {
 	// Build creates a Docker image from the given input
