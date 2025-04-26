@@ -17,8 +17,8 @@ RUN npm ci && npm run build
 # runtime
 FROM nginx:alpine
 COPY --from=build /app/build /usr/share/nginx/html
-EXPOSE {{.Port}}
-HEALTHCHECK CMD wget -qO- http://localhost:{{.Port}}/ || exit 1`))
+EXPOSE {{index .Ports 0}}
+HEALTHCHECK CMD wget -qO- http://localhost:{{index .Ports 0}}/ || exit 1`))
 
 // DockerfileGenerator implements rules.RuleWithDockerfile.
 type DockerfileGenerator struct{}

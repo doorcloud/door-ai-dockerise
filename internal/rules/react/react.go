@@ -1,70 +1,94 @@
 package react
 
 import (
-	"bytes"
 	"encoding/json"
 	"io/fs"
+	"path/filepath"
 	"strings"
 )
 
-// Detector implements types.Detector.
+// Detector implements types.Rule.
 type Detector struct{}
 
 func (Detector) Name() string {
 	return "react"
 }
 
-func (Detector) Detect(fsys fs.FS) (bool, error) {
-	// Look for package.json in the root directory
-	_, err := fs.Stat(fsys, "package.json")
-	if err != nil {
-		return false, nil
-	}
-	return true, nil
+func (Detector) Detect(fsys fs.FS) bool {
+	detected, _ := detectReact(fsys)
+	return detected
 }
 
 func (Detector) Facts(fsys fs.FS) map[string]any {
-	facts := map[string]any{
-		"language":  "JavaScript",
-		"framework": "React",
-		"build_cmd": "npm ci && npm run build",
-		"start_cmd": "serve -s build",
-		"artifact":  "build",
-		"ports":     []int{80},
-		"port":      3000, // Default port
+	return map[string]any{
+		"language":   "javascript",
+		"framework":  "react",
+		"build_tool": "npm",
+		"build_cmd":  "npm ci && npm run build",
+		"build_dir":  ".",
+		"ports":      []int{3000},
+		"base_hint":  "node:18-alpine",
 	}
-
-	// Read package.json
-	data, err := fs.ReadFile(fsys, "package.json")
-	if err != nil {
-		return facts
-	}
-
-	var pkg struct {
-		Scripts struct {
-			Start string `json:"start"`
-		} `json:"scripts"`
-	}
-
-	if err := json.Unmarshal(data, &pkg); err != nil {
-		return facts
-	}
-
-	// Set port based on start script
-	if strings.Contains(pkg.Scripts.Start, "vite") {
-		facts["port"] = 5173
-	} else if strings.Contains(pkg.Scripts.Start, "react-scripts") {
-		facts["port"] = 3000
-	}
-
-	return facts
 }
 
-func hasReactPkg(fsys fs.FS, pkgJSONPath string) bool {
-	b, err := fs.ReadFile(fsys, pkgJSONPath)
+// ReactDetector implements types.Detector.
+type ReactDetector struct{}
+
+func (ReactDetector) Name() string {
+	return "react"
+}
+
+func (ReactDetector) Detect(fsys fs.FS) (bool, error) {
+	return detectReact(fsys)
+}
+
+// detectReact is the shared implementation for both detectors
+func detectReact(fsys fs.FS) (bool, error) {
+	var found bool
+	err := fs.WalkDir(fsys, ".", func(path string, e fs.DirEntry, err error) error {
+		if found || err != nil || e.IsDir() {
+			return nil
+		}
+
+		if strings.EqualFold(filepath.Base(path), "package.json") {
+			b, err := fs.ReadFile(fsys, path)
+			if err != nil {
+				return nil
+			}
+
+			var p struct {
+				Dependencies    map[string]any `json:"dependencies"`
+				DevDependencies map[string]any `json:"devDependencies"`
+			}
+			if err := json.Unmarshal(b, &p); err != nil {
+				return nil
+			}
+
+			if hasReact(p.Dependencies) || hasReact(p.DevDependencies) {
+				found = true
+				return fs.SkipDir
+			}
+		}
+
+		// Stop descending deeper than 3 segments
+		if len(strings.Split(path, string(filepath.Separator))) > 3 {
+			return fs.SkipDir
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return false
+		return false, err
 	}
-	// Check for different quote styles
-	return bytes.Contains(b, []byte(`"react"`)) || bytes.Contains(b, []byte(`'react'`)) || bytes.Contains(b, []byte(`react:`))
+	return found, nil
+}
+
+func hasReact(m map[string]any) bool {
+	for k := range m {
+		if k == "react" || k == "react-dom" || k == "next" || k == "react-scripts" {
+			return true
+		}
+	}
+	return false
 }

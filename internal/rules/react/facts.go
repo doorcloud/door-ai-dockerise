@@ -35,11 +35,11 @@ func (FactsDetector) Facts(fsys fs.FS) map[string]any {
 	}
 
 	return map[string]any{
-		"language":   "JavaScript",
-		"framework":  "React",
-		"build_cmd":  buildCmd,
-		"artifact":   "build",
-		"ports":      []int{3000},
-		"base_image": "node:18-alpine",
+		"language":  "javascript",
+		"framework": "react",
+		"build_cmd": buildCmd,
+		"artifact":  "build",
+		"ports":     "3000",
+		"base_hint": "node:18-alpine",
 	}
 }
