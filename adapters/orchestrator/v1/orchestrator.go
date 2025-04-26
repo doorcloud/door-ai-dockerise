@@ -40,10 +40,23 @@ func (o *Orchestrator) Run(
 	spec *core.Spec,
 	logs io.Writer,
 ) (string, error) {
-	// 1. Detect stack
-	stack, err := o.detectStack(ctx, root, logs)
-	if err != nil {
-		return "", fmt.Errorf("detection failed: %w", err)
+	// 1. Get stack info from spec or detect
+	var stack core.StackInfo
+	var err error
+
+	if spec != nil {
+		// Spec-first mode: trust user input
+		stack = core.StackInfo{
+			Name:      spec.Framework,
+			BuildTool: spec.BuildTool,
+			Version:   spec.Version,
+		}
+	} else {
+		// Code-first mode: detect stack
+		stack, err = o.detectStack(ctx, root, logs)
+		if err != nil {
+			return "", fmt.Errorf("detection failed: %w", err)
+		}
 	}
 
 	// 2. Gather facts

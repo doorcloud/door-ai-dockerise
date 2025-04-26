@@ -1,0 +1,10 @@
+# Spring Boot stack specification
+language: java
+framework: springboot
+version: "3.2"
+buildTool: maven
+params:
+  port: "8080"
+  jdkVersion: "17"
+  buildArgs: "-DskipTests"
+  baseImage: "eclipse-temurin:17-jre-alpine" 

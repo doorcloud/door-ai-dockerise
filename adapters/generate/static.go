@@ -31,7 +31,7 @@ func (g *StaticGenerator) GenerateDockerfile(ctx context.Context, facts core.Fac
 		return `FROM node:18-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN if [ -f package-lock.json ]; then npm ci --silent; else npm install --silent --omit=dev; fi
 COPY . .
 RUN npm run build
 EXPOSE 3000

@@ -1,8 +1,25 @@
 package core
 
-// Spec represents the input specification for Dockerfile generation
+import (
+	"fmt"
+)
+
+// Spec defines the stack configuration
 type Spec struct {
-	Stack   string            `yaml:"stack"`   // e.g. "react", "spring-boot"
-	Version string            `yaml:"version"` // optional
-	Facts   map[string]string `yaml:"facts"`   // free-form key-value
+	Language  string            `yaml:"language" json:"language"`
+	Framework string            `yaml:"framework" json:"framework"`
+	Version   string            `yaml:"version,omitempty" json:"version,omitempty"`
+	BuildTool string            `yaml:"buildTool,omitempty" json:"buildTool,omitempty"`
+	Params    map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
+}
+
+// Validate returns an error if the spec is invalid
+func (s *Spec) Validate() error {
+	if s.Language == "" {
+		return fmt.Errorf("language is required")
+	}
+	if s.Params == nil {
+		s.Params = make(map[string]string)
+	}
+	return nil
 }

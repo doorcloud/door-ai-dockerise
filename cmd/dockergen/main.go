@@ -10,19 +10,21 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/node"
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
+	"github.com/doorcloud/door-ai-dockerise/adapters/docker"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
+	v1 "github.com/doorcloud/door-ai-dockerise/adapters/orchestrator/v1"
+	"github.com/doorcloud/door-ai-dockerise/adapters/spec/loader"
 	"github.com/doorcloud/door-ai-dockerise/core"
-	"github.com/doorcloud/door-ai-dockerise/core/mock"
-	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	coremock "github.com/doorcloud/door-ai-dockerise/core/mock"
+	dockerdriver "github.com/doorcloud/door-ai-dockerise/drivers/docker"
 )
 
 func main() {
 	// Parse flags
 	path := flag.String("path", ".", "Path to the project directory")
+	specPath := flag.String("spec", "", "Path to stack spec file (yaml/json)")
 	debug := flag.Bool("debug", false, "Enable debug logging")
-	attempts := flag.Int("attempts", 3, "Maximum number of generation attempts")
 	flag.Parse()
 
 	// Set debug mode if requested
@@ -34,23 +36,42 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	// Create pipeline with all components
-	p := v2.New(v2.Options{
-		Detectors: []core.Detector{
+	// Load spec if provided
+	var spec *core.Spec
+	if *specPath != "" {
+		var err error
+		spec, err = loader.Load(*specPath)
+		if err != nil {
+			log.Fatalf("Failed to load spec: %v", err)
+		}
+	}
+
+	// Create the pipeline components
+	generator := generate.NewLLM(coremock.NewMockLLM())
+	verifier := docker.NewVerifierAdapter(dockerdriver.NewDriver())
+
+	// Create orchestrator with all components
+	o := v1.New(
+		[]core.Detector{
 			detectors.NewReact(),
 			springboot.NewSpringBootDetector(),
 			node.NewNodeDetector(),
 		},
-		FactProviders: []core.FactProvider{
+		[]core.FactProvider{
 			facts.NewStatic(),
 		},
-		Generator:  generate.NewLLM(mock.NewMockLLM()),
-		Verifier:   docker.NewDriver(),
-		MaxRetries: *attempts,
-	})
+		generator,
+		verifier,
+	)
 
-	// Run the pipeline
-	if err := p.Run(ctx, *path); err != nil {
+	// Run the orchestrator
+	dockerfile, err := o.Run(ctx, *path, spec, os.Stdout)
+	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Write Dockerfile
+	if err := os.WriteFile("Dockerfile", []byte(dockerfile), 0644); err != nil {
+		log.Fatalf("Failed to write Dockerfile: %v", err)
 	}
 }
