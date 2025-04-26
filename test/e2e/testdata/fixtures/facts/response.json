@@ -1,0 +1,9 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"language\":\"javascript\",\"framework\":\"react\",\"build_cmd\":\"npm ci && npm run build\",\"start_cmd\":\"serve -s build\",\"artifact\":\"build\",\"ports\":[80],\"default_port\":3000}"
+      }
+    }
+  ]
+} 

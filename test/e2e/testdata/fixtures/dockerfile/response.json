@@ -1,0 +1,9 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "# build stage\nFROM node:18-alpine AS build\nWORKDIR /app\nCOPY . .\nRUN npm ci && npm run build\n\n# runtime\nFROM nginx:alpine\nCOPY --from=build /app/build /usr/share/nginx/html\nEXPOSE 80\nHEALTHCHECK CMD wget -qO- http://localhost:80/ || exit 1"
+      }
+    }
+  ]
+} 
