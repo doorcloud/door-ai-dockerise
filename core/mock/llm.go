@@ -18,7 +18,11 @@ func NewMockLLM() *MockLLM {
 			"react": `FROM node:18-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN if [ -f package-lock.json ]; then \
+        npm ci --silent ; \
+    else \
+        npm install --production --silent ; \
+    fi
 COPY . .
 RUN npm run build
 EXPOSE 3000
@@ -38,7 +42,11 @@ CMD ["java", "-jar", "app.jar"]`,
 			"node": `FROM node:18-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN if [ -f package-lock.json ]; then \
+        npm ci --silent ; \
+    else \
+        npm install --production --silent ; \
+    fi
 COPY . .
 EXPOSE 3000
 CMD ["npm", "start"]`,

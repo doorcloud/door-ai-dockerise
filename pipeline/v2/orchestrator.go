@@ -7,29 +7,30 @@ import (
 	"path/filepath"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 )
 
 // Orchestrator coordinates the Dockerfile generation pipeline
 type Orchestrator struct {
-	detectors core.Detector
-	llm       core.ChatCompletion
-	builder   *docker.Driver
+	detectors    core.Detector
+	factProvider core.FactProvider
+	llm          core.ChatCompletion
+	builder      *docker.Driver
 }
 
 // New creates a new Orchestrator
 func New(
+	factProvider core.FactProvider,
 	llm core.ChatCompletion,
 ) *Orchestrator {
 	return &Orchestrator{
 		detectors: core.DetectorChain{
-			springboot.New(),
 			react.NewReactDetector(),
 		},
-		llm:     llm,
-		builder: docker.New(),
+		factProvider: factProvider,
+		llm:          llm,
+		builder:      docker.New(),
 	}
 }
 
@@ -42,6 +43,12 @@ func (o *Orchestrator) Run(ctx context.Context, root string) error {
 	}
 	if info.Name == "" {
 		return fmt.Errorf("no stack detected")
+	}
+
+	// Gather facts about the stack
+	facts, err := o.factProvider.Facts(ctx, info)
+	if err != nil {
+		return fmt.Errorf("failed to gather facts: %v", err)
 	}
 
 	// Generate Dockerfile using LLM
