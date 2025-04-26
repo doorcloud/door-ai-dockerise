@@ -5,20 +5,21 @@ package k8sjob
 
 import (
 	"context"
-	"io"
+	"fmt"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
-// DummyJob is a placeholder for non-k8s builds
+// DummyJob implements core.BuildDriver for non-k8s builds
 type DummyJob struct{}
 
 // NewJob returns a dummy job for non-k8s builds
-func NewJob() (*DummyJob, error) {
-	return &DummyJob{}, nil
+func NewJob() core.BuildDriver {
+	return &DummyJob{}
 }
 
-// Build implements the core.BuildDriver interface
-func (j *DummyJob) Build(ctx context.Context, in core.BuildInput, w io.Writer) (core.ImageRef, error) {
-	return core.ImageRef{}, nil
+// Build implements core.BuildDriver
+func (j *DummyJob) Build(ctx context.Context, in core.BuildInput, log core.LogStreamer) (core.ImageRef, error) {
+	log.Error("k8s job build not available - build with k8s tag")
+	return core.ImageRef{}, fmt.Errorf("k8s job build not available - build with k8s tag")
 }

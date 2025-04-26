@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/log/plain"
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/drivers"
 )
@@ -75,6 +76,9 @@ func (o *Orchestrator) Run(
 	spec *core.Spec,
 	logs io.Writer,
 ) (string, error) {
+	// Create a log streamer from the io.Writer
+	log := plain.NewWriterStreamer(logs)
+
 	o.logf("Starting Dockerfile generation for %s with build timeout of %d minutes", root, o.buildTimeout)
 
 	// Create a context with the build timeout
@@ -129,7 +133,7 @@ func (o *Orchestrator) Run(
 		_, err := o.builder.Build(buildCtx, core.BuildInput{
 			ContextTar: createContextTar(root),
 			Dockerfile: dockerfile,
-		}, logs)
+		}, log)
 		if err == nil {
 			return dockerfile, nil
 		}

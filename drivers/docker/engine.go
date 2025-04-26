@@ -17,7 +17,10 @@ type Engine struct {
 
 // NewEngine creates a new Docker engine client
 func NewEngine() (*Engine, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	cli, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithVersion("1.43"), // Set API version to match server
+	)
 	if err != nil {
 		return nil, err
 	}
