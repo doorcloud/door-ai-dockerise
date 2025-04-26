@@ -7,8 +7,12 @@ import (
 
 // StackInfo represents information about a detected stack
 type StackInfo struct {
-	Name      string
-	BuildTool string
+	Name          string
+	BuildTool     string
+	Version       string
+	SpecProvided  bool
+	Confidence    float64
+	DetectedFiles []string
 }
 
 // Fact represents a fact about a stack
