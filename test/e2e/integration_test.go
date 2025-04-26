@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
 	"github.com/doorcloud/door-ai-dockerise/providers/llm/openai"
@@ -52,7 +53,7 @@ func TestIntegration_SpringBoot(t *testing.T) {
 	// Run through the pipeline
 	t.Run("via pipeline", func(t *testing.T) {
 		p := v2.NewPipeline(
-			v2.WithLLM(openai.New(os.Getenv("OPENAI_API_KEY"))),
+			v2.WithGenerator(generate.NewLLM(openai.New(os.Getenv("OPENAI_API_KEY")))),
 			v2.WithDockerDriver(docker.NewDriver()),
 		)
 		if err := p.Run(ctx, testDir); err != nil {

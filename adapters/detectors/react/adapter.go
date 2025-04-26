@@ -6,19 +6,14 @@ import (
 	"strings"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
-	"github.com/doorcloud/door-ai-dockerise/legacy/detectors/react"
 )
 
-// ReactDetector wraps the legacy React detector
-type ReactDetector struct {
-	legacy *react.ReactDetector
-}
+// ReactDetector implements the core.Detector interface for React projects
+type ReactDetector struct{}
 
 // NewReactDetector creates a new ReactDetector
 func NewReactDetector() *ReactDetector {
-	return &ReactDetector{
-		legacy: react.NewReactDetector(),
-	}
+	return &ReactDetector{}
 }
 
 // Detect implements the core.Detector interface
