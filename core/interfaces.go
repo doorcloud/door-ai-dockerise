@@ -10,7 +10,7 @@ type StackInfo struct {
 	Meta map[string]string
 }
 
-// Fact represents a piece of information about a stack
+// Fact represents a fact about a stack
 type Fact struct {
 	Key   string
 	Value string
@@ -22,24 +22,19 @@ type Message struct {
 	Content string
 }
 
-// Detector is responsible for detecting technology stacks
+// Detector detects the type of application in a directory
 type Detector interface {
-	Detect(ctx context.Context, root string) (StackInfo, error)
+	Detect(ctx context.Context, dir string) (StackInfo, error)
 }
 
-// FactProvider is responsible for gathering facts about a detected stack
-type FactProvider interface {
-	Facts(ctx context.Context, info StackInfo) ([]Fact, error)
+// Generator generates a Dockerfile for a given stack
+type Generator interface {
+	Generate(ctx context.Context, stack StackInfo, facts []Fact) (string, error)
 }
 
-// DockerfileGen is responsible for generating Dockerfiles
-type DockerfileGen interface {
-	Generate(ctx context.Context, facts []Fact) (string, error)
-}
-
-// Verifier is responsible for verifying Dockerfiles
+// Verifier verifies that a generated file is valid
 type Verifier interface {
-	Verify(ctx context.Context, root string, dockerfile string) error
+	Verify(ctx context.Context, root string, generatedFile string) error
 }
 
 // ChatCompletion is responsible for chat-based completions
@@ -51,9 +46,9 @@ type ChatCompletion interface {
 type DetectorChain []Detector
 
 // Detect implements the Detector interface for DetectorChain
-func (c DetectorChain) Detect(ctx context.Context, root string) (StackInfo, error) {
+func (c DetectorChain) Detect(ctx context.Context, dir string) (StackInfo, error) {
 	for _, d := range c {
-		info, err := d.Detect(ctx, root)
+		info, err := d.Detect(ctx, dir)
 		if err != nil {
 			return StackInfo{}, err
 		}

@@ -19,7 +19,7 @@ func TestReactDetector(t *testing.T) {
 
 	// Create a React project directory
 	reactDir := filepath.Join(tmpDir, "react-project")
-	if err := os.MkdirAll(reactDir, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(reactDir, "src"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -32,6 +32,22 @@ func TestReactDetector(t *testing.T) {
 		}
 	}`
 	if err := os.WriteFile(filepath.Join(reactDir, "package.json"), []byte(packageJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a React component file
+	reactComponent := `import React from 'react';
+
+function App() {
+	return (
+		<div>
+			<h1>Hello, React!</h1>
+		</div>
+	);
+}
+
+export default App;`
+	if err := os.WriteFile(filepath.Join(reactDir, "src", "App.js"), []byte(reactComponent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -87,6 +103,9 @@ func TestReactDetector(t *testing.T) {
 			}
 			if got.Name != tt.wantInfo.Name {
 				t.Errorf("React.Detect() = %v, want %v", got, tt.wantInfo)
+			}
+			if got.Name != "" && got.Meta["framework"] != tt.wantInfo.Meta["framework"] {
+				t.Errorf("React.Detect() framework = %v, want %v", got.Meta["framework"], tt.wantInfo.Meta["framework"])
 			}
 		})
 	}

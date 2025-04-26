@@ -10,7 +10,7 @@ import (
 
 func TestReactDetector(t *testing.T) {
 	// Get the absolute path to the fixtures directory
-	fixturesDir := filepath.Join("test", "e2e", "fixtures", "react-min")
+	fixturesDir := filepath.Join("..", "..", "..", "test", "e2e", "fixtures", "react-min")
 	absPath, err := filepath.Abs(fixturesDir)
 	if err != nil {
 		t.Fatalf("Failed to get absolute path: %v", err)
