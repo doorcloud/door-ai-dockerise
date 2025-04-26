@@ -17,8 +17,8 @@ RUN npm ci && npm run build
 # runtime
 FROM nginx:alpine
 COPY --from=build /app/build /usr/share/nginx/html
-EXPOSE 3000
-HEALTHCHECK CMD wget -qO- http://localhost:3000/ || exit 1`))
+EXPOSE {{.Port}}
+HEALTHCHECK CMD wget -qO- http://localhost:{{.Port}}/ || exit 1`))
 
 // DockerfileGenerator implements rules.RuleWithDockerfile.
 type DockerfileGenerator struct{}
@@ -32,12 +32,12 @@ func (DockerfileGenerator) Detect(fsys fs.FS) bool {
 }
 
 func (DockerfileGenerator) Facts(fsys fs.FS) map[string]any {
-	return FactsDetector{}.Facts(fsys)
+	return Detector{}.Facts(fsys)
 }
 
 func (DockerfileGenerator) Dockerfile(f *types.Facts) (string, error) {
 	var buf bytes.Buffer
-	if err := tpl.Execute(&buf, nil); err != nil {
+	if err := tpl.Execute(&buf, f); err != nil {
 		return "", err
 	}
 	return buf.String(), nil
