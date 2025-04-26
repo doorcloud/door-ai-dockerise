@@ -1,10 +1,13 @@
 package v1
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
@@ -124,7 +127,7 @@ func (o *Orchestrator) Run(
 
 		// Build the image
 		_, err := o.builder.Build(buildCtx, core.BuildInput{
-			ContextTar: createContextTar(root), // TODO: Implement this function
+			ContextTar: createContextTar(root),
 			Dockerfile: dockerfile,
 		}, logs)
 		if err == nil {
@@ -198,4 +201,54 @@ func (o *Orchestrator) gatherFacts(
 	}
 
 	return allFacts, nil
+}
+
+// createContextTar creates a tar archive of the build context
+func createContextTar(root string) io.Reader {
+	// Create a buffer to hold the tar data
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	defer tw.Close()
+
+	// Walk the directory and add files to the tar
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Create tar header
+		header, err := tar.FileInfoHeader(info, info.Name())
+		if err != nil {
+			return err
+		}
+
+		// Set the path relative to the root
+		relPath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		header.Name = relPath
+
+		// Write header
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		// Write file content
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(tw, file)
+		return err
+	})
+
+	return &buf
 }
