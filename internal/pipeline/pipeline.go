@@ -3,74 +3,76 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
-// Pipeline represents the main processing pipeline
+// Pipeline represents a Dockerfile generation pipeline
 type Pipeline struct {
-	detectors    []core.Detector
-	generators   []core.Generator
-	verifiers    []core.Verifier
-	factProvider core.FactProvider
+	detectors  []core.Detector
+	generators []core.Generator
+	verifiers  []core.Verifier
+	providers  []core.FactProvider
 }
 
-// NewPipeline creates a new pipeline instance
-func NewPipeline(
-	detectors []core.Detector,
-	generators []core.Generator,
-	verifiers []core.Verifier,
-	factProvider core.FactProvider,
-) *Pipeline {
+// New creates a new Pipeline instance
+func New(detectors []core.Detector, generators []core.Generator, verifiers []core.Verifier, providers []core.FactProvider) *Pipeline {
 	return &Pipeline{
-		detectors:    detectors,
-		generators:   generators,
-		verifiers:    verifiers,
-		factProvider: factProvider,
+		detectors:  detectors,
+		generators: generators,
+		verifiers:  verifiers,
+		providers:  providers,
 	}
 }
 
-// Process runs the complete pipeline
-func (p *Pipeline) Process(ctx context.Context, input string) (*core.StackInfo, error) {
-	// Step 1: Detect stack information
-	stackInfo, err := p.detectStack(ctx, input)
+// Run executes the pipeline
+func (p *Pipeline) Run(ctx context.Context, dir string, opts map[string]interface{}, streamer io.Writer) (string, error) {
+	// Detect stack
+	stack, err := p.detectStack(ctx, dir)
 	if err != nil {
-		return nil, fmt.Errorf("detection failed: %w", err)
+		return "", fmt.Errorf("failed to detect stack: %w", err)
 	}
 
-	// Step 2: Generate Dockerfile
-	dockerfile, err := p.generateDockerfile(ctx, stackInfo)
+	// Gather facts
+	facts, err := p.gatherFacts(ctx, stack)
 	if err != nil {
-		return nil, fmt.Errorf("generation failed: %w", err)
+		return "", fmt.Errorf("failed to gather facts: %w", err)
 	}
 
-	// Step 3: Verify the generated Dockerfile
-	if err := p.verifyDockerfile(ctx, dockerfile); err != nil {
-		return nil, fmt.Errorf("verification failed: %w", err)
+	// Generate Dockerfile
+	dockerfile, err := p.generateDockerfile(ctx, facts)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate Dockerfile: %w", err)
 	}
 
-	return stackInfo, nil
+	// Verify Dockerfile
+	if err := p.verifyDockerfile(ctx, dir, dockerfile); err != nil {
+		return "", fmt.Errorf("failed to verify Dockerfile: %w", err)
+	}
+
+	return dockerfile, nil
 }
 
-// detectStack runs all detectors in parallel and returns the first successful detection
-func (p *Pipeline) detectStack(ctx context.Context, input string) (*core.StackInfo, error) {
-	var wg sync.WaitGroup
-	results := make(chan *core.StackInfo, len(p.detectors))
+func (p *Pipeline) detectStack(ctx context.Context, dir string) (core.StackInfo, error) {
+	fsys := os.DirFS(dir)
+	results := make(chan core.StackInfo, len(p.detectors))
 	errs := make(chan error, len(p.detectors))
 
-	fsys := os.DirFS(input)
-	for _, detector := range p.detectors {
+	var wg sync.WaitGroup
+	for _, d := range p.detectors {
 		wg.Add(1)
 		go func(d core.Detector) {
 			defer wg.Done()
-			if stack, err := d.Detect(ctx, fsys); err == nil {
-				results <- &stack
-			} else {
+			stack, err := d.Detect(ctx, fsys)
+			if err != nil {
 				errs <- err
+				return
 			}
-		}(detector)
+			results <- stack
+		}(d)
 	}
 
 	go func() {
@@ -79,55 +81,62 @@ func (p *Pipeline) detectStack(ctx context.Context, input string) (*core.StackIn
 		close(errs)
 	}()
 
-	// Return the first successful detection
+	// Return first successful result
 	for stack := range results {
-		return stack, nil
+		if stack.Name != "" {
+			return stack, nil
+		}
 	}
 
-	// If we get here, no detection was successful
-	var allErrs []error
-	for err := range errs {
-		allErrs = append(allErrs, err)
+	// If no successful results, return first error
+	if err := <-errs; err != nil {
+		return core.StackInfo{}, err
 	}
-	return nil, fmt.Errorf("all detectors failed: %v", allErrs)
+
+	return core.StackInfo{}, fmt.Errorf("no stack detected")
 }
 
-// generateDockerfile runs all generators in parallel and returns the first successful generation
-func (p *Pipeline) generateDockerfile(ctx context.Context, stack *core.StackInfo) (string, error) {
-	var wg sync.WaitGroup
-	results := make(chan string, len(p.generators))
-	errs := make(chan error, len(p.generators))
-
-	// Get facts from provider
-	factSlice, err := p.factProvider.Facts(ctx, *stack)
-	if err != nil {
-		return "", err
-	}
-
-	// Convert []Fact to Facts struct
+func (p *Pipeline) gatherFacts(ctx context.Context, stack core.StackInfo) (core.Facts, error) {
 	facts := core.Facts{
 		StackType: stack.Name,
 		BuildTool: stack.BuildTool,
 	}
-	for _, fact := range factSlice {
-		switch fact.Key {
-		case "stack_type":
-			facts.StackType = fact.Value
-		case "build_tool":
-			facts.BuildTool = fact.Value
+
+	for _, provider := range p.providers {
+		factSlice, err := provider.Facts(ctx, stack)
+		if err != nil {
+			return core.Facts{}, err
+		}
+
+		for _, fact := range factSlice {
+			switch fact.Key {
+			case "stack_type":
+				facts.StackType = fact.Value
+			case "build_tool":
+				facts.BuildTool = fact.Value
+			}
 		}
 	}
 
-	for _, generator := range p.generators {
+	return facts, nil
+}
+
+func (p *Pipeline) generateDockerfile(ctx context.Context, facts core.Facts) (string, error) {
+	results := make(chan string, len(p.generators))
+	errs := make(chan error, len(p.generators))
+
+	var wg sync.WaitGroup
+	for _, g := range p.generators {
 		wg.Add(1)
 		go func(g core.Generator) {
 			defer wg.Done()
-			if dockerfile, err := g.Generate(ctx, facts); err == nil {
-				results <- dockerfile
-			} else {
+			dockerfile, err := g.Generate(ctx, facts)
+			if err != nil {
 				errs <- err
+				return
 			}
-		}(generator)
+			results <- dockerfile
+		}(g)
 	}
 
 	go func() {
@@ -136,32 +145,33 @@ func (p *Pipeline) generateDockerfile(ctx context.Context, stack *core.StackInfo
 		close(errs)
 	}()
 
-	// Return the first successful generation
+	// Return first successful result
 	for dockerfile := range results {
-		return dockerfile, nil
+		if dockerfile != "" {
+			return dockerfile, nil
+		}
 	}
 
-	// If we get here, no generation was successful
-	var allErrs []error
-	for err := range errs {
-		allErrs = append(allErrs, err)
+	// If no successful results, return first error
+	if err := <-errs; err != nil {
+		return "", err
 	}
-	return "", fmt.Errorf("all generators failed: %v", allErrs)
+
+	return "", fmt.Errorf("no Dockerfile generated")
 }
 
-// verifyDockerfile runs all verifiers in parallel and returns the first error if any
-func (p *Pipeline) verifyDockerfile(ctx context.Context, dockerfile string) error {
-	var wg sync.WaitGroup
+func (p *Pipeline) verifyDockerfile(ctx context.Context, dir string, dockerfile string) error {
 	errs := make(chan error, len(p.verifiers))
 
-	for _, verifier := range p.verifiers {
+	var wg sync.WaitGroup
+	for _, v := range p.verifiers {
 		wg.Add(1)
 		go func(v core.Verifier) {
 			defer wg.Done()
-			if err := v.Verify(ctx, ".", dockerfile); err != nil {
+			if err := v.Verify(ctx, dir, dockerfile); err != nil {
 				errs <- err
 			}
-		}(verifier)
+		}(v)
 	}
 
 	go func() {
@@ -169,8 +179,8 @@ func (p *Pipeline) verifyDockerfile(ctx context.Context, dockerfile string) erro
 		close(errs)
 	}()
 
-	// Return the first error if any
-	for err := range errs {
+	// Return first error if any
+	if err := <-errs; err != nil {
 		return err
 	}
 

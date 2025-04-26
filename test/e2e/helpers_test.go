@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/doorcloud/door-ai-dockerise/adapters/log/plain"
+	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/providers/llm/mock"
 )
 
@@ -98,4 +101,12 @@ func waitForHTTP(t *testing.T, url string, timeout time.Duration) {
 		time.Sleep(time.Second)
 	}
 	t.Fatalf("HTTP endpoint not ready after %s", timeout)
+}
+
+// NewRecorder creates a pipe where the writer end is wrapped in a LogStreamer
+// and the reader end can be used to verify the logs.
+func NewRecorder() (io.Reader, core.LogStreamer) {
+	pr, pw := io.Pipe()
+	streamer := plain.NewWriterStreamer(pw)
+	return pr, streamer
 }

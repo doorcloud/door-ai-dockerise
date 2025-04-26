@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
@@ -12,7 +13,9 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReactProject(t *testing.T) {
@@ -99,4 +102,88 @@ func TestReactIntegration(t *testing.T) {
 	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
 		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
 	}
+}
+
+func TestIntegration_React(t *testing.T) {
+	if os.Getenv("DG_E2E") == "" {
+		t.Skip("Skipping E2E test; set DG_E2E=1 to run")
+	}
+
+	// Create a temporary directory for the test
+	dir := t.TempDir()
+
+	// Create package.json
+	err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{
+		"name": "test-app",
+		"version": "1.0.0",
+		"scripts": {
+			"start": "react-scripts start",
+			"build": "react-scripts build"
+		},
+		"dependencies": {
+			"react": "^18.2.0",
+			"react-dom": "^18.2.0",
+			"react-scripts": "5.0.1"
+		}
+	}`), 0644)
+	assert.NoError(t, err)
+
+	// Create src/index.js
+	err = os.MkdirAll(filepath.Join(dir, "src"), 0755)
+	assert.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, "src", "index.js"), []byte(`
+		import React from 'react';
+		import ReactDOM from 'react-dom/client';
+		import './index.css';
+
+		const root = ReactDOM.createRoot(document.getElementById('root'));
+		root.render(
+			<React.StrictMode>
+				<h1>Hello, World!</h1>
+			</React.StrictMode>
+		);
+	`), 0644)
+	assert.NoError(t, err)
+
+	// Create src/index.css
+	err = os.WriteFile(filepath.Join(dir, "src", "index.css"), []byte(`
+		body {
+			margin: 0;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+			-webkit-font-smoothing: antialiased;
+		}
+	`), 0644)
+	assert.NoError(t, err)
+
+	// Create public/index.html
+	err = os.MkdirAll(filepath.Join(dir, "public"), 0755)
+	assert.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, "public", "index.html"), []byte(`
+		<!DOCTYPE html>
+		<html>
+			<head>
+				<meta charset="utf-8" />
+				<title>Test App</title>
+			</head>
+			<body>
+				<div id="root"></div>
+			</body>
+		</html>
+	`), 0644)
+	assert.NoError(t, err)
+
+	// Create pipeline
+	p := pipeline.New(nil, nil, nil, nil)
+
+	// Create log recorder
+	reader, streamer := NewRecorder()
+
+	// Run the pipeline
+	ctx := context.Background()
+	_, err = p.Run(ctx, dir, nil, streamer)
+	assert.NoError(t, err)
+
+	// Verify build logs
+	AssertLog(t, reader, "npm ci", 2*time.Minute)
+	AssertLog(t, reader, "Successfully built", 2*time.Minute)
 }
