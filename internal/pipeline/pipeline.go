@@ -8,21 +8,21 @@ import (
 
 	"github.com/doorcloud/door-ai-dockerise/internal/detect"
 	"github.com/doorcloud/door-ai-dockerise/internal/facts"
-	"github.com/doorcloud/door-ai-dockerise/internal/rules"
+	"github.com/doorcloud/door-ai-dockerise/internal/registry"
 	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
 
 // Pipeline represents the Dockerfile generation pipeline
 type Pipeline struct {
 	fsys fs.FS
-	reg  *rules.Registry
+	reg  types.Registry
 }
 
 // New creates a new pipeline for the given directory
 func New(dir string) *Pipeline {
 	return &Pipeline{
 		fsys: os.DirFS(dir),
-		reg:  rules.NewRegistry(),
+		reg:  registry.Default(),
 	}
 }
 

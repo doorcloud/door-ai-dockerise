@@ -6,19 +6,14 @@ import (
 	"os"
 
 	"github.com/doorcloud/door-ai-dockerise/internal/registry"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
 
 // ErrUnknownStack is returned when no rule matches the project
 var ErrUnknownStack = errors.New("unknown technology stack")
 
-// RuleInfo represents information about a detected technology stack
-type RuleInfo struct {
-	Name string // e.g. "spring-boot"
-	Tool string // e.g. "maven"
-}
-
 // Detect checks if the given filesystem matches any known rules
-func Detect(fsys fs.FS) (RuleInfo, error) {
+func Detect(fsys fs.FS) (types.RuleInfo, error) {
 	// Try all registered rules
 	for _, rule := range registry.All() {
 		if rule.Detect(fsys) {
@@ -29,14 +24,14 @@ func Detect(fsys fs.FS) (RuleInfo, error) {
 					tool = buildTool
 				}
 			}
-			return RuleInfo{
+			return types.RuleInfo{
 				Name: rule.Name(),
 				Tool: tool,
 			}, nil
 		}
 	}
 
-	return RuleInfo{}, ErrUnknownStack
+	return types.RuleInfo{}, ErrUnknownStack
 }
 
 // DetectStack analyzes the given directory and returns the detected technology stack

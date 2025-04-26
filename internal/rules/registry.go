@@ -12,7 +12,7 @@ import (
 var ErrUnknownStack = errors.New("unknown technology stack")
 
 // DetectStack tries to detect the technology stack in the given repository
-func DetectStack(fsys fs.FS) (*detect.RuleInfo, error) {
+func DetectStack(fsys fs.FS) (*types.RuleInfo, error) {
 	rule, err := detect.Detect(fsys)
 	if err != nil {
 		return nil, ErrUnknownStack
@@ -43,23 +43,23 @@ func (r *Registry) GetDetectors() []types.Detector {
 }
 
 // Detect tries each registered detector in order until one matches
-func (r *Registry) Detect(fsys fs.FS) (detect.RuleInfo, bool) {
+func (r *Registry) Detect(fsys fs.FS) (types.RuleInfo, bool) {
 	for _, d := range r.detectors {
 		detected, err := d.Detect(fsys)
 		if err != nil {
 			continue
 		}
 		if detected {
-			return detect.RuleInfo{
+			return types.RuleInfo{
 				Name: d.Name(),
 			}, true
 		}
 	}
-	return detect.RuleInfo{}, false
+	return types.RuleInfo{}, false
 }
 
 // GetFacts extracts facts about the project using the given rule
-func GetFacts(fsys fs.FS, rule detect.RuleInfo) (types.Facts, error) {
+func GetFacts(fsys fs.FS, rule types.RuleInfo) (types.Facts, error) {
 	switch rule.Name {
 	case "spring-boot":
 		if rule.Tool == "gradle" {

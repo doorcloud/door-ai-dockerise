@@ -4,13 +4,13 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/detect"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetFacts_SpringBootGradle(t *testing.T) {
 	fsys := fstest.MapFS{}
-	facts, err := GetFacts(fsys, detect.RuleInfo{
+	facts, err := GetFacts(fsys, types.RuleInfo{
 		Name: "spring-boot",
 		Tool: "gradle",
 	})
@@ -25,7 +25,7 @@ func TestGetFacts_SpringBootGradle(t *testing.T) {
 
 func TestGetFacts_NodePnpm(t *testing.T) {
 	fsys := fstest.MapFS{}
-	facts, err := GetFacts(fsys, detect.RuleInfo{
+	facts, err := GetFacts(fsys, types.RuleInfo{
 		Name: "node",
 		Tool: "pnpm",
 	})

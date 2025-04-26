@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,7 +35,7 @@ func TestDetect(t *testing.T) {
 	tests := []struct {
 		name     string
 		files    []testFile
-		expected RuleInfo
+		expected types.RuleInfo
 		wantErr  bool
 	}{
 		{
@@ -42,7 +43,7 @@ func TestDetect(t *testing.T) {
 			files: []testFile{
 				{path: "pom.xml"},
 			},
-			expected: RuleInfo{
+			expected: types.RuleInfo{
 				Name: "spring-boot",
 				Tool: "maven",
 			},
@@ -52,7 +53,7 @@ func TestDetect(t *testing.T) {
 			files: []testFile{
 				{path: "gradlew"},
 			},
-			expected: RuleInfo{
+			expected: types.RuleInfo{
 				Name: "spring-boot",
 				Tool: "gradle",
 			},
@@ -63,7 +64,7 @@ func TestDetect(t *testing.T) {
 				{path: "package.json"},
 				{path: "pnpm-lock.yaml"},
 			},
-			expected: RuleInfo{
+			expected: types.RuleInfo{
 				Name: "node",
 				Tool: "pnpm",
 			},
@@ -71,10 +72,10 @@ func TestDetect(t *testing.T) {
 		{
 			name: "react with npm",
 			files: []testFile{
-				{path: "package.json", content: `{"dependencies": {"react": "18.2.0"}}`},
+				{path: "package.json", content: `{"dependencies": {"react": "18.2.0", "react-scripts": "5.0.1"}}`},
 				{path: "src/index.js"},
 			},
-			expected: RuleInfo{
+			expected: types.RuleInfo{
 				Name: "react",
 				Tool: "npm",
 			},

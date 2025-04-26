@@ -10,9 +10,13 @@ import (
 
 func TestDockerfileGenerator(t *testing.T) {
 	gen := DockerfileGenerator{}
-	facts := &types.Facts{Framework: "React"} // minimal
+	facts := &types.Facts{
+		Framework: "React",
+		Ports:     []int{3000},
+	}
 	df, err := gen.Dockerfile(facts)
 	require.NoError(t, err)
 	assert.Contains(t, df, "node:18-alpine")
 	assert.Contains(t, df, "COPY --from=build")
+	assert.Contains(t, df, "EXPOSE 3000")
 }

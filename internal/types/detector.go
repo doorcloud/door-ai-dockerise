@@ -18,4 +18,12 @@ type Registry interface {
 	Register(detector Detector)
 	// GetDetectors returns all registered detectors
 	GetDetectors() []Detector
+	// Detect tries each registered detector in order until one matches
+	Detect(fsys fs.FS) (RuleInfo, bool)
+}
+
+// RuleInfo represents information about a detected technology stack
+type RuleInfo struct {
+	Name string // e.g. "spring-boot"
+	Tool string // e.g. "maven"
 }

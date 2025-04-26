@@ -4,11 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"testing/fstest"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/detect"
 	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/internal/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,7 +58,7 @@ func TestInferWithClient(t *testing.T) {
 	mockClient := &llm.MockClient{}
 
 	// Create a mock rule info
-	rule := detect.RuleInfo{
+	rule := types.RuleInfo{
 		Name: "spring-boot",
 		Tool: "maven",
 	}
@@ -101,7 +102,7 @@ func TestGetFacts(t *testing.T) {
 	}
 
 	// Create a mock rule info
-	rule := detect.RuleInfo{
+	rule := types.RuleInfo{
 		Name: "spring-boot",
 		Tool: "maven",
 	}
@@ -122,4 +123,64 @@ func TestGetFacts(t *testing.T) {
 	assert.Equal(t, "/actuator/health", facts.Health)
 	assert.Equal(t, "eclipse-temurin:17-jre", facts.BaseImage)
 	assert.Equal(t, map[string]string{"SPRING_PROFILES_ACTIVE": "prod"}, facts.Env)
+}
+
+func TestExtract(t *testing.T) {
+	tests := []struct {
+		name     string
+		rule     types.RuleInfo
+		expected types.Facts
+	}{
+		{
+			name: "spring-boot",
+			rule: types.RuleInfo{
+				Name: "spring-boot",
+			},
+			expected: types.Facts{
+				Language:  "java",
+				Framework: "spring-boot",
+				BuildTool: "maven",
+				BuildCmd:  "mvn clean package",
+				BuildDir:  "target",
+				StartCmd:  "java -jar target/demo-0.0.1-SNAPSHOT.jar",
+				Artifact:  "target/demo-0.0.1-SNAPSHOT.jar",
+				Ports:     []int{8080},
+				Health:    "/actuator/health",
+				BaseImage: "eclipse-temurin:17-jre",
+				Env:       map[string]string{"SPRING_PROFILES_ACTIVE": "prod"},
+			},
+		},
+		{
+			name: "node",
+			rule: types.RuleInfo{
+				Name: "node",
+			},
+			expected: types.Facts{
+				Language:  "javascript",
+				Framework: "node",
+				BuildTool: "npm",
+				BuildCmd:  "npm install",
+				BuildDir:  ".",
+				StartCmd:  "npm start",
+				Artifact:  ".",
+				Ports:     []int{3000},
+				Health:    "/health",
+				BaseImage: "node:18-alpine",
+				Env:       map[string]string{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			facts, err := Extract(nil, tt.rule)
+			if err != nil {
+				t.Errorf("Extract() error = %v", err)
+				return
+			}
+			if !reflect.DeepEqual(facts, tt.expected) {
+				t.Errorf("Extract() = %v, want %v", facts, tt.expected)
+			}
+		})
+	}
 }

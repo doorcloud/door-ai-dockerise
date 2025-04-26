@@ -1,11 +1,17 @@
 package registry
 
 import (
-	"github.com/doorcloud/door-ai-dockerise/internal/rules/react"
+	"sync"
+
+	"github.com/doorcloud/door-ai-dockerise/internal/registry/impl"
 	"github.com/doorcloud/door-ai-dockerise/internal/types"
 )
 
-var all []types.Rule
+var (
+	all             []types.Rule
+	defaultRegistry types.Registry
+	once            sync.Once
+)
 
 // Register adds a rule to the registry
 func Register(r types.Rule) {
@@ -17,6 +23,14 @@ func All() []types.Rule {
 	return all
 }
 
-func init() {
-	Register(&react.Detector{})
+// Default returns the default registry instance
+func Default() types.Registry {
+	once.Do(func() {
+		reg := impl.NewRegistry()
+		for _, rule := range all {
+			reg.Register(types.NewDetector(rule))
+		}
+		defaultRegistry = reg
+	})
+	return defaultRegistry
 }

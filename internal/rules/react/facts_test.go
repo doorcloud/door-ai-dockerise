@@ -19,6 +19,6 @@ func TestFactsDetector(t *testing.T) {
 	fd := FactsDetector{}
 	require.True(t, fd.Detect(os.DirFS(root)))
 	facts := fd.Facts(os.DirFS(root))
-	assert.Equal(t, "React", facts["framework"])
+	assert.Equal(t, "react", facts["framework"])
 	assert.Contains(t, facts["build_cmd"], "build")
 }

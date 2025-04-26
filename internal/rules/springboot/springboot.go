@@ -4,30 +4,81 @@ import (
 	"io/fs"
 )
 
-// Detector implements types.Detector.
+// Detector implements types.Rule.
 type Detector struct{}
 
 func (d Detector) Name() string {
 	return "spring-boot"
 }
 
-func (d Detector) Detect(fsys fs.FS) (bool, error) {
+func (d Detector) Detect(fsys fs.FS) bool {
 	// Check for Maven
 	if _, err := fs.Stat(fsys, "pom.xml"); err == nil {
-		return true, nil
+		return true
 	}
 
 	// Check for Gradle
 	if _, err := fs.Stat(fsys, "gradlew"); err == nil {
-		return true, nil
+		return true
 	}
 
 	// Check for Gradle Kotlin
 	if _, err := fs.Stat(fsys, "build.gradle.kts"); err == nil {
-		return true, nil
+		return true
 	}
 
-	return false, nil
+	return false
+}
+
+func (d Detector) Facts(fsys fs.FS) map[string]any {
+	// Check for Maven
+	if _, err := fs.Stat(fsys, "pom.xml"); err == nil {
+		return map[string]any{
+			"language":      "java",
+			"framework":     "spring-boot",
+			"build_tool":    "maven",
+			"build_command": "mvn clean package",
+			"start_command": "java -jar target/*.jar",
+			"artifact":      "target/*.jar",
+			"ports":         []int{8080},
+		}
+	}
+
+	// Check for Gradle
+	if _, err := fs.Stat(fsys, "gradlew"); err == nil {
+		return map[string]any{
+			"language":      "java",
+			"framework":     "spring-boot",
+			"build_tool":    "gradle",
+			"build_command": "./gradlew build",
+			"start_command": "java -jar build/libs/*.jar",
+			"artifact":      "build/libs/*.jar",
+			"ports":         []int{8080},
+		}
+	}
+
+	// Check for Gradle Kotlin
+	if _, err := fs.Stat(fsys, "build.gradle.kts"); err == nil {
+		return map[string]any{
+			"language":      "java",
+			"framework":     "spring-boot",
+			"build_tool":    "gradle",
+			"build_command": "./gradlew build",
+			"start_command": "java -jar build/libs/*.jar",
+			"artifact":      "build/libs/*.jar",
+			"ports":         []int{8080},
+		}
+	}
+
+	return map[string]any{
+		"language":      "java",
+		"framework":     "spring-boot",
+		"build_tool":    "maven",
+		"build_command": "mvn clean package",
+		"start_command": "java -jar target/*.jar",
+		"artifact":      "target/*.jar",
+		"ports":         []int{8080},
+	}
 }
 
 // Rule implements types.Rule.

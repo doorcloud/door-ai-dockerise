@@ -32,18 +32,17 @@ func GetFacts(dir string) (types.Facts, error) {
 }
 
 // GetFactsFromRule extracts facts about the project using the given rule
-func GetFactsFromRule(fsys fs.FS, rule detect.RuleInfo) (types.Facts, error) {
-	return rules.GetFacts(fsys, rule)
+func GetFactsFromRule(fsys fs.FS, rule types.RuleInfo) (types.Facts, error) {
+	return Extract(fsys, rule)
 }
 
-// Infer analyzes the filesystem and returns facts about the project
-func Infer(ctx context.Context, fsys fs.FS, rule detect.RuleInfo) (types.Facts, error) {
-	client := llm.New()
-	return InferWithClient(ctx, fsys, rule, client)
+// Infer extracts facts about a project using a given rule and LLM inference.
+func Infer(ctx context.Context, fsys fs.FS, rule types.RuleInfo) (types.Facts, error) {
+	return InferWithClient(ctx, fsys, rule, llm.New())
 }
 
-// InferWithClient analyzes the project using the provided client
-func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.RuleInfo, client llm.Client) (types.Facts, error) {
+// InferWithClient extracts facts about a project using a given rule and LLM inference with a specific client.
+func InferWithClient(ctx context.Context, fsys fs.FS, rule types.RuleInfo, client llm.Client) (types.Facts, error) {
 	// Get relevant snippets
 	snippets, err := getSnippets(fsys)
 	if err != nil {
@@ -51,7 +50,7 @@ func InferWithClient(ctx context.Context, fsys fs.FS, rule detect.RuleInfo, clie
 	}
 
 	// Build prompt from template
-	prompt, err := buildFactsPrompt(snippets, rule.Tool)
+	prompt, err := buildFactsPrompt(snippets, rule.Name)
 	if err != nil {
 		return types.Facts{}, fmt.Errorf("build prompt: %w", err)
 	}
@@ -142,4 +141,23 @@ func buildFactsPrompt(snippets []string, tool string) (string, error) {
 	}
 
 	return result.String(), nil
+}
+
+// Extract extracts facts about the project using the given rule
+func Extract(fsys fs.FS, rule types.RuleInfo) (types.Facts, error) {
+	return rules.GetFacts(fsys, rule)
+}
+
+// ExtractFromDetector extracts facts about the project using the given detector
+func ExtractFromDetector(fsys fs.FS, detector types.Detector) (types.Facts, error) {
+	detected, err := detector.Detect(fsys)
+	if err != nil {
+		return types.Facts{}, err
+	}
+	if !detected {
+		return types.Facts{}, nil
+	}
+	return rules.GetFacts(fsys, types.RuleInfo{
+		Name: detector.Name(),
+	})
 }

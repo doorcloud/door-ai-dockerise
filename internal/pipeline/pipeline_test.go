@@ -4,8 +4,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/rules"
-	"github.com/doorcloud/door-ai-dockerise/internal/rules/springboot"
+	"github.com/doorcloud/door-ai-dockerise/internal/registry"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,12 +40,9 @@ func TestPipeline_Run(t *testing.T) {
 		},
 	}
 
-	reg := rules.NewRegistry()
-	reg.Register(&springboot.Detector{})
-
 	p := &Pipeline{
 		fsys: fsys,
-		reg:  reg,
+		reg:  registry.Default(),
 	}
 	dockerfile, err := p.Run()
 	assert.NoError(t, err)
