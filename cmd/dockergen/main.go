@@ -3,38 +3,40 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
+	"log"
 	"os"
+	"time"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/llm"
-	"github.com/doorcloud/door-ai-dockerise/internal/loop"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/node"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
+	"github.com/doorcloud/door-ai-dockerise/adapters/verifiers/docker"
+	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	"github.com/doorcloud/door-ai-dockerise/providers/llm/openai"
 )
 
-func newTestClient() llm.Client {
-	return llm.New()
-}
-
 func main() {
-	// Parse command line arguments
-	dir := flag.String("dir", ".", "project directory")
+	rootDir := flag.String("root", ".", "Root directory to analyze")
 	flag.Parse()
 
-	// Create filesystem for the project directory
-	fsys := os.DirFS(*dir)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 
-	// Run the Dockerfile generation loop
-	ctx := context.Background()
-	client := newTestClient()
-
-	dockerfile, err := loop.Run(ctx, fsys, client)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	p := defaultPipeline()
+	if err := p.Run(ctx, *rootDir); err != nil {
+		log.Fatalf("Pipeline failed: %v", err)
 	}
+}
 
-	// Write Dockerfile to disk
-	if err := os.WriteFile("Dockerfile", []byte(dockerfile), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing Dockerfile: %v\n", err)
-		os.Exit(1)
-	}
+func defaultPipeline() *pipeline.Orchestrator {
+	return pipeline.New(
+		core.DetectorChain{
+			react.New(),
+			springboot.New(),
+			node.New(),
+		},
+		openai.New(os.Getenv("OPENAI_API_KEY")),
+		docker.New(),
+	)
 }
