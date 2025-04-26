@@ -75,3 +75,58 @@ go test ./...
 ## License
 
 MIT 
+
+## Architecture
+
+### Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant Orchestrator
+    participant Detector
+    participant FactProvider
+    participant Generator
+    participant Verifier
+
+    User->>CLI: Run dockergen
+    CLI->>Orchestrator: Run pipeline
+    Orchestrator->>Detector: Detect stack
+    Detector-->>Orchestrator: StackInfo
+    Orchestrator->>FactProvider: Gather facts
+    FactProvider-->>Orchestrator: Facts
+    Orchestrator->>Generator: Generate Dockerfile
+    Generator-->>Orchestrator: Dockerfile
+    loop Verification
+        Orchestrator->>Verifier: Verify Dockerfile
+        alt Verification fails
+            Verifier-->>Orchestrator: Error
+            Orchestrator->>Generator: Fix Dockerfile
+            Generator-->>Orchestrator: Fixed Dockerfile
+        else Verification succeeds
+            Verifier-->>Orchestrator: Success
+        end
+    end
+    Orchestrator-->>CLI: Dockerfile
+    CLI-->>User: Success
+```
+
+### Retry Flow
+
+The orchestrator implements a retry mechanism for Dockerfile verification without re-detecting the stack. This flow is used when:
+
+1. The initial Dockerfile generation fails verification
+2. The stack information is already known (either from detection or spec)
+
+The retry flow follows these steps:
+
+1. Generate initial Dockerfile
+2. Verify the Dockerfile
+3. If verification fails:
+   - Use the generator's Fix method to improve the Dockerfile
+   - Retry verification with the fixed Dockerfile
+   - Repeat up to the configured number of attempts
+4. If all attempts fail, return the last error
+
+The retry mechanism is configurable through the `attempts` parameter in the Orchestrator options. 

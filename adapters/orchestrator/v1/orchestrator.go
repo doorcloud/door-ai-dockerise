@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
@@ -17,20 +18,26 @@ type Orchestrator struct {
 	verifier      core.Verifier
 	log           core.Logger
 	attempts      int
+	buildTimeout  int
 }
 
 // Opts contains options for creating a new Orchestrator
 type Opts struct {
-	Detectors []core.Detector
-	Facts     []core.FactProvider
-	Generator core.DockerfileGen
-	Verifier  core.Verifier
-	Log       core.Logger
-	Attempts  int
+	Detectors    []core.Detector
+	Facts        []core.FactProvider
+	Generator    core.DockerfileGen
+	Verifier     core.Verifier
+	Log          core.Logger
+	Attempts     int
+	BuildTimeout int // Timeout in minutes for Docker builds
 }
 
 // New creates a new Orchestrator
 func New(opts Opts) *Orchestrator {
+	// Set default timeout to 20 minutes if not specified
+	if opts.BuildTimeout == 0 {
+		opts.BuildTimeout = 20
+	}
 	return &Orchestrator{
 		detectors:     opts.Detectors,
 		factProviders: opts.Facts,
@@ -38,6 +45,7 @@ func New(opts Opts) *Orchestrator {
 		verifier:      opts.Verifier,
 		log:           opts.Log,
 		attempts:      opts.Attempts,
+		buildTimeout:  opts.BuildTimeout,
 	}
 }
 
@@ -54,7 +62,11 @@ func (o *Orchestrator) Run(
 	spec *core.Spec,
 	logs io.Writer,
 ) (string, error) {
-	o.logf("Starting Dockerfile generation for %s", root)
+	o.logf("Starting Dockerfile generation for %s with build timeout of %d minutes", root, o.buildTimeout)
+
+	// Create a context with the build timeout
+	buildCtx, cancel := context.WithTimeout(ctx, time.Duration(o.buildTimeout)*time.Minute)
+	defer cancel()
 
 	// 1. Get stack info from spec or detect
 	var stack core.StackInfo
@@ -100,7 +112,7 @@ func (o *Orchestrator) Run(
 		default:
 		}
 
-		err := o.verifier.Verify(ctx, root, dockerfile)
+		err := o.verifier.Verify(buildCtx, root, dockerfile)
 		if err == nil {
 			return dockerfile, nil
 		}
