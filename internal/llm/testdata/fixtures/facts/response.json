@@ -1,9 +1,0 @@
-{
-  "choices": [
-    {
-      "message": {
-        "content": "{\"language\":\"javascript\",\"framework\":\"react\",\"build_tool\":\"npm\",\"build_cmd\":\"npm run build\",\"build_dir\":\"dist\",\"start_cmd\":\"npm start\",\"artifact\":\"dist\",\"ports\":[5173],\"health\":\"/\",\"base_image\":\"node:18-alpine\",\"env\":{}}"
-      }
-    }
-  ]
-} 

@@ -16,7 +16,7 @@ type Orchestrator struct {
 	detectors    core.Detector
 	factProvider core.FactProvider
 	llm          core.ChatCompletion
-	builder      *docker.Driver
+	builder      docker.Driver
 }
 
 // New creates a new Orchestrator
@@ -30,7 +30,7 @@ func New(
 		},
 		factProvider: factProvider,
 		llm:          llm,
-		builder:      docker.New(),
+		builder:      docker.NewDriver(),
 	}
 }
 
@@ -46,7 +46,7 @@ func (o *Orchestrator) Run(ctx context.Context, root string) error {
 	}
 
 	// Gather facts about the stack
-	facts, err := o.factProvider.Facts(ctx, info)
+	_, err = o.factProvider.Facts(ctx, info)
 	if err != nil {
 		return fmt.Errorf("failed to gather facts: %v", err)
 	}
@@ -66,21 +66,18 @@ func (o *Orchestrator) Run(ctx context.Context, root string) error {
 		return fmt.Errorf("LLM failed: %v", err)
 	}
 
-	// Build and verify the Dockerfile
-	imageID, err := o.builder.Build(ctx, root, dockerfile.Content)
-	if err != nil {
-		return fmt.Errorf("build failed: %v", err)
-	}
-
-	// Run the container to verify it works
-	port := 3000
-	if err := o.builder.Run(ctx, imageID, port); err != nil {
-		return fmt.Errorf("run failed: %v", err)
-	}
-
 	// Write the Dockerfile
-	if err := os.WriteFile(filepath.Join(root, "Dockerfile"), []byte(dockerfile.Content), 0644); err != nil {
+	dockerfilePath := filepath.Join(root, "Dockerfile")
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfile.Content), 0644); err != nil {
 		return fmt.Errorf("failed to write Dockerfile: %v", err)
+	}
+
+	// Build the image
+	if err := o.builder.Build(ctx, nil, docker.BuildOptions{
+		Tags:       []string{"temp-image"},
+		Dockerfile: dockerfile.Content,
+	}); err != nil {
+		return fmt.Errorf("build failed: %v", err)
 	}
 
 	return nil

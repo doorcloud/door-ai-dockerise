@@ -2,9 +2,9 @@ package verifiers
 
 import (
 	"context"
-	"os"
-
-	"github.com/doorcloud/door-ai-dockerise/internal/verify"
+	"fmt"
+	"os/exec"
+	"strings"
 )
 
 type Docker struct{}
@@ -14,6 +14,18 @@ func NewDocker() *Docker {
 }
 
 func (d *Docker) Verify(ctx context.Context, repoPath, dockerfile string) error {
-	fsys := os.DirFS(repoPath)
-	return verify.Verify(ctx, fsys, dockerfile)
+	// Build the image
+	cmd := exec.CommandContext(ctx, "docker", "build", "-t", "test-image", "-f", "-", repoPath)
+	cmd.Stdin = strings.NewReader(dockerfile)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to build image: %v\nOutput: %s", err, output)
+	}
+
+	// Run the container
+	cmd = exec.CommandContext(ctx, "docker", "run", "--rm", "test-image")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to run container: %v\nOutput: %s", err, output)
+	}
+
+	return nil
 }

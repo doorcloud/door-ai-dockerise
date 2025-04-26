@@ -4,8 +4,8 @@ import (
 	"context"
 	"os"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/rules/react"
 	"github.com/doorcloud/door-ai-dockerise/core"
-	"github.com/doorcloud/door-ai-dockerise/internal/rules/react"
 )
 
 type React struct {

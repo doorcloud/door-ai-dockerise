@@ -29,7 +29,6 @@ func TestReactDetector(t *testing.T) {
 				Name: "react",
 				Meta: map[string]string{
 					"framework": "react",
-					"buildTool": "npm",
 				},
 			},
 			wantErr: false,
@@ -56,9 +55,6 @@ func TestReactDetector(t *testing.T) {
 			if got.Name != "" {
 				if got.Meta["framework"] != tt.wantInfo.Meta["framework"] {
 					t.Errorf("ReactDetector.Detect() framework = %v, want %v", got.Meta["framework"], tt.wantInfo.Meta["framework"])
-				}
-				if got.Meta["buildTool"] != tt.wantInfo.Meta["buildTool"] {
-					t.Errorf("ReactDetector.Detect() buildTool = %v, want %v", got.Meta["buildTool"], tt.wantInfo.Meta["buildTool"])
 				}
 			}
 		})

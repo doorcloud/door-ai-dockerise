@@ -4,32 +4,28 @@ import (
 	"context"
 	"os"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/rules/react"
 	"github.com/doorcloud/door-ai-dockerise/core"
-	"github.com/doorcloud/door-ai-dockerise/internal/rules/react"
 )
 
 // ReactDetector implements core.Detector for React projects
 type ReactDetector struct {
-	detector react.ReactDetector
+	d react.ReactDetector
 }
 
 // NewReactDetector creates a new ReactDetector
 func NewReactDetector() *ReactDetector {
-	return &ReactDetector{
-		detector: react.ReactDetector{},
-	}
+	return &ReactDetector{d: react.ReactDetector{}}
 }
 
 // Detect implements the core.Detector interface
-func (d *ReactDetector) Detect(ctx context.Context, path string) (core.StackInfo, error) {
-	fsys := os.DirFS(path)
-	if d.detector.Detect(fsys) {
-		facts := d.detector.Facts(fsys)
+func (r *ReactDetector) Detect(ctx context.Context, dir string) (core.StackInfo, error) {
+	fsys := os.DirFS(dir)
+	if r.d.Detect(fsys) {
 		return core.StackInfo{
 			Name: "react",
 			Meta: map[string]string{
 				"framework": "react",
-				"buildTool": facts["buildTool"].(string),
 			},
 		}, nil
 	}

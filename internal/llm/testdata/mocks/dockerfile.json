@@ -1,5 +1,0 @@
-{
-  "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3": "FROM golang:1.21-alpine\nWORKDIR /app\nCOPY . .\nRUN go build -o app\nCMD [\"./app\"]",
-  "4c23ebf7de8236f61155a85b7d0e72850e82b909": "FROM golang:1.21-alpine\nWORKDIR /app\nCOPY . .\nRUN go build -o app\nCMD [\"./app\"]",
-  "170d11c1d10109305a54c9b58a16a74d8b0b1290": "FROM golang:1.21-alpine\nWORKDIR /app\nCOPY . .\nRUN go build -o app\nCMD [\"./app\"]"
-} 
