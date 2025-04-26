@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/drivers"
 )
 
 // Orchestrator implements the core.Orchestrator interface
@@ -19,6 +20,7 @@ type Orchestrator struct {
 	log           core.Logger
 	attempts      int
 	buildTimeout  int
+	builder       core.BuildDriver
 }
 
 // Opts contains options for creating a new Orchestrator
@@ -29,7 +31,8 @@ type Opts struct {
 	Verifier     core.Verifier
 	Log          core.Logger
 	Attempts     int
-	BuildTimeout int // Timeout in minutes for Docker builds
+	BuildTimeout int
+	Builder      core.BuildDriver
 }
 
 // New creates a new Orchestrator
@@ -38,6 +41,12 @@ func New(opts Opts) *Orchestrator {
 	if opts.BuildTimeout == 0 {
 		opts.BuildTimeout = 20
 	}
+
+	// Set default builder to Docker engine if not specified
+	if opts.Builder == nil {
+		opts.Builder = drivers.Default()
+	}
+
 	return &Orchestrator{
 		detectors:     opts.Detectors,
 		factProviders: opts.Facts,
@@ -46,6 +55,7 @@ func New(opts Opts) *Orchestrator {
 		log:           opts.Log,
 		attempts:      opts.Attempts,
 		buildTimeout:  opts.BuildTimeout,
+		builder:       opts.Builder,
 	}
 }
 
@@ -107,17 +117,21 @@ func (o *Orchestrator) Run(
 	for i := 0; i < o.attempts; i++ {
 		// Check for context cancellation
 		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
+		case <-buildCtx.Done():
+			return "", buildCtx.Err()
 		default:
 		}
 
-		err := o.verifier.Verify(buildCtx, root, dockerfile)
+		// Build the image
+		_, err := o.builder.Build(buildCtx, core.BuildInput{
+			ContextTar: createContextTar(root), // TODO: Implement this function
+			Dockerfile: dockerfile,
+		}, logs)
 		if err == nil {
 			return dockerfile, nil
 		}
 		lastErr = err
-		o.logf("Verification failed (attempt %d/%d): %v", i+1, o.attempts, err)
+		o.logf("Build failed (attempt %d/%d): %v", i+1, o.attempts, err)
 
 		if i < o.attempts-1 {
 			// Try to fix the Dockerfile
@@ -127,14 +141,14 @@ func (o *Orchestrator) Run(
 				continue
 			}
 			dockerfile = newDockerfile
-			o.logf("Fixed Dockerfile, retrying verification")
+			o.logf("Fixed Dockerfile, retrying build")
 		}
 	}
 
 	if lastErr != nil {
-		return "", fmt.Errorf("verification failed after %d attempts: %w", o.attempts, lastErr)
+		return "", fmt.Errorf("build failed after %d attempts: %w", o.attempts, lastErr)
 	}
-	return "", fmt.Errorf("verification failed after %d attempts", o.attempts)
+	return "", fmt.Errorf("build failed after %d attempts", o.attempts)
 }
 
 func (o *Orchestrator) detectStack(

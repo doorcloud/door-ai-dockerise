@@ -1,8 +1,10 @@
 package v1
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -11,16 +13,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockVerifier struct {
+type mockBuilder struct {
 	failCount int
+	calls     int
 }
 
-func (m *mockVerifier) Verify(ctx context.Context, root string, dockerfile string) error {
+func (m *mockBuilder) Build(ctx context.Context, in core.BuildInput, w io.Writer) (core.ImageRef, error) {
+	m.calls++
 	if m.failCount > 0 {
 		m.failCount--
-		return fmt.Errorf("build failed")
+		return core.ImageRef{}, fmt.Errorf("build failed")
 	}
-	return nil
+	_, err := w.Write([]byte("built\n"))
+	if err != nil {
+		return core.ImageRef{}, err
+	}
+	return core.ImageRef{Name: "test-image:latest"}, nil
 }
 
 func TestOrchestrator_Retry(t *testing.T) {
@@ -28,15 +36,15 @@ func TestOrchestrator_Retry(t *testing.T) {
 	gen := mock.NewMockClient()
 	gen.SetResponse("test:test", "FROM ubuntu:latest\n")
 
-	// Create a verifier that fails once
-	verifier := &mockVerifier{failCount: 1}
+	// Create a builder that fails once
+	builder := &mockBuilder{failCount: 1}
 
 	// Create orchestrator with 2 attempts and 10 minute timeout
 	o := New(Opts{
 		Detectors:    []core.Detector{},
 		Facts:        []core.FactProvider{},
 		Generator:    gen,
-		Verifier:     verifier,
+		Builder:      builder,
 		Attempts:     2,
 		BuildTimeout: 10,
 	})
@@ -48,9 +56,12 @@ func TestOrchestrator_Retry(t *testing.T) {
 	}
 
 	// Test successful retry
-	dockerfile, err := o.Run(context.Background(), ".", spec, nil)
+	var buf bytes.Buffer
+	dockerfile, err := o.Run(context.Background(), ".", spec, &buf)
 	assert.NoError(t, err)
 	assert.Contains(t, dockerfile, "FROM ubuntu:latest")
+	assert.Equal(t, 2, builder.calls) // Should have called Build twice
+	assert.Contains(t, buf.String(), "built")
 
 	// Test context cancellation
 	ctx, cancel := context.WithCancel(context.Background())
