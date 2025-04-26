@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/llm"
-	"github.com/doorcloud/door-ai-dockerise/internal/loop"
+	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	"github.com/doorcloud/door-ai-dockerise/providers/llm/openai"
 )
 
 // TestIntegration_SpringBoot tests the full pipeline with a Spring Boot project
@@ -48,16 +49,15 @@ func TestIntegration_SpringBoot(t *testing.T) {
 		t.Skipf("test directory %s does not exist", testDir)
 	}
 
-	// Run through the loop package directly
-	t.Run("via loop package", func(t *testing.T) {
-		fsys := os.DirFS(testDir)
-		client := llm.New()
-		dockerfile, err := loop.Run(ctx, fsys, client)
-		if err != nil {
-			t.Fatalf("loop.Run failed: %v", err)
+	// Run through the pipeline
+	t.Run("via pipeline", func(t *testing.T) {
+		p := v2.NewPipeline(
+			v2.WithLLM(openai.New(os.Getenv("OPENAI_API_KEY"))),
+			v2.WithDockerDriver(docker.NewDriver()),
+		)
+		if err := p.Run(ctx, testDir); err != nil {
+			t.Fatalf("pipeline.Run failed: %v", err)
 		}
-
-		verifyDockerfile(t, dockerfile)
 	})
 
 	// Run through the CLI

@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
@@ -54,19 +55,18 @@ CMD ["npm", "start"]`,
 	}
 }
 
-// Chat implements the ChatCompletion interface
-func (m *MockLLM) Chat(ctx context.Context, msgs []core.Message) (core.Message, error) {
-	// Extract the stack type from the last message
-	lastMsg := msgs[len(msgs)-1].Content
-	var stackType string
-	if lastMsg == "react" || lastMsg == "springboot" || lastMsg == "node" {
-		stackType = lastMsg
-	} else {
-		stackType = "node" // default
-	}
-
-	return core.Message{
-		Role:    "assistant",
-		Content: m.Responses[stackType],
+// GatherFacts implements the ChatCompletion interface
+func (m *MockLLM) GatherFacts(ctx context.Context, fsys fs.FS, stack core.StackInfo) (core.Facts, error) {
+	return core.Facts{
+		StackType: stack.Name,
+		BuildTool: stack.BuildTool,
 	}, nil
+}
+
+// GenerateDockerfile implements the ChatCompletion interface
+func (m *MockLLM) GenerateDockerfile(ctx context.Context, facts core.Facts) (string, error) {
+	if dockerfile, ok := m.Responses[facts.StackType]; ok {
+		return dockerfile, nil
+	}
+	return "", nil
 }

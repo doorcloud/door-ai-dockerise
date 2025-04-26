@@ -2,32 +2,48 @@ package react
 
 import (
 	"context"
-	"os"
+	"io/fs"
+	"strings"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/rules/react"
 	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/legacy/detectors/react"
 )
 
-// ReactDetector implements core.Detector for React projects
+// ReactDetector wraps the legacy React detector
 type ReactDetector struct {
-	d react.ReactDetector
+	legacy *react.ReactDetector
 }
 
 // NewReactDetector creates a new ReactDetector
 func NewReactDetector() *ReactDetector {
-	return &ReactDetector{d: react.ReactDetector{}}
+	return &ReactDetector{
+		legacy: react.NewReactDetector(),
+	}
 }
 
 // Detect implements the core.Detector interface
-func (r *ReactDetector) Detect(ctx context.Context, dir string) (core.StackInfo, error) {
-	fsys := os.DirFS(dir)
-	if r.d.Detect(fsys) {
-		return core.StackInfo{
-			Name: "react",
-			Meta: map[string]string{
-				"framework": "react",
-			},
-		}, nil
+func (d *ReactDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
+	// Check for package.json
+	packageJSON, err := fs.ReadFile(fsys, "package.json")
+	if err != nil {
+		if err == fs.ErrNotExist {
+			return core.StackInfo{}, nil
+		}
+		return core.StackInfo{}, err
 	}
-	return core.StackInfo{}, nil
+
+	// Check for React dependencies
+	if !containsReact(string(packageJSON)) {
+		return core.StackInfo{}, nil
+	}
+
+	return core.StackInfo{
+		Name:      "react",
+		BuildTool: "npm",
+	}, nil
+}
+
+// containsReact checks if the package.json contains React dependencies
+func containsReact(packageJSON string) bool {
+	return strings.Contains(packageJSON, `"react"`) || strings.Contains(packageJSON, `"@types/react"`)
 }

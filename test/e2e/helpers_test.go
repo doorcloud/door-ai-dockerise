@@ -13,7 +13,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"github.com/doorcloud/door-ai-dockerise/internal/llm"
+	"github.com/doorcloud/door-ai-dockerise/providers/llm/mock"
 )
 
 func runCommand(dir string, name string, args ...string) error {
@@ -24,16 +24,17 @@ func runCommand(dir string, name string, args ...string) error {
 	return cmd.Run()
 }
 
-func newTestClient(t *testing.T) llm.Client {
-	if os.Getenv("DG_E2E") == "1" {
-		return &llm.MockClient{}
-	}
-
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		t.Fatal("OPENAI_API_KEY environment variable is not set")
-	}
-	return llm.New()
+func newTestClient(t *testing.T) *mock.Client {
+	return mock.New(map[string]string{
+		"stack:react\nframework:react": `FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+EXPOSE 3000
+CMD ["npm", "start"]`,
+	})
 }
 
 func buildAndRun(t *testing.T, dir string, dockerfile string, ports []string) (string, error) {

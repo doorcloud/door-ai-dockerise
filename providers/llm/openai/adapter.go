@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"fmt"
+	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/sashabaranov/go-openai"
@@ -20,32 +21,34 @@ func New(apiKey string) *OpenAI {
 	}
 }
 
-// Chat implements the core.ChatCompletion interface
-func (o *OpenAI) Chat(ctx context.Context, msgs []core.Message) (core.Message, error) {
-	// Convert core.Message to openai.ChatCompletionMessage
-	openaiMsgs := make([]openai.ChatCompletionMessage, len(msgs))
-	for i, msg := range msgs {
-		openaiMsgs[i] = openai.ChatCompletionMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
-		}
-	}
+// GatherFacts implements the core.ChatCompletion interface
+func (o *OpenAI) GatherFacts(ctx context.Context, fsys fs.FS, stack core.StackInfo) (core.Facts, error) {
+	// For now, just pass through the stack info
+	return core.Facts{
+		StackType: stack.Name,
+		BuildTool: stack.BuildTool,
+	}, nil
+}
 
-	// Call OpenAI API
+// GenerateDockerfile implements the core.ChatCompletion interface
+func (o *OpenAI) GenerateDockerfile(ctx context.Context, facts core.Facts) (string, error) {
+	prompt := fmt.Sprintf("Generate a Dockerfile for a %s project using %s as the build tool.", facts.StackType, facts.BuildTool)
+
 	resp, err := o.client.CreateChatCompletion(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:    openai.GPT3Dot5Turbo,
-			Messages: openaiMsgs,
+			Model: openai.GPT4,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: prompt,
+				},
+			},
 		},
 	)
 	if err != nil {
-		return core.Message{}, fmt.Errorf("OpenAI API call failed: %v", err)
+		return "", err
 	}
 
-	// Convert response to core.Message
-	return core.Message{
-		Role:    "assistant",
-		Content: resp.Choices[0].Message.Content,
-	}, nil
+	return resp.Choices[0].Message.Content, nil
 }

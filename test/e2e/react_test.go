@@ -7,12 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/node"
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
-	"github.com/doorcloud/door-ai-dockerise/adapters/verifiers/docker"
-	"github.com/doorcloud/door-ai-dockerise/core"
-	"github.com/doorcloud/door-ai-dockerise/core/mock"
-	"github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
+	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
 )
 
 func TestReactE2E(t *testing.T) {
@@ -31,14 +29,11 @@ func TestReactE2E(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// Create the pipeline with mock LLM
-	p := pipeline.New(
-		core.DetectorChain{
-			react.New(),
-			node.New(),
-		},
-		mock.NewMockLLM(),
-		docker.New(),
+	// Create the pipeline with static generator
+	p := v2.NewPipeline(
+		v2.WithDetectors(react.NewReactDetector()),
+		v2.WithLLM(generate.New()),
+		v2.WithDockerDriver(docker.NewDriver()),
 	)
 
 	// Run the pipeline

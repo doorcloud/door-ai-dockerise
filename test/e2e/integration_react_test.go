@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/doorcloud/door-ai-dockerise/internal/loop"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
+	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
+	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,18 +28,19 @@ func TestReactIntegration(t *testing.T) {
 
 	// Use local fixture
 	repo := filepath.Join(wd, "..", "..", "test", "e2e", "fixtures", "react-min")
-	fsys := os.DirFS(repo)
 
-	// Run the Dockerfile generation loop
+	// Run the pipeline
 	ctx := context.Background()
-	client := newTestClient(t)
-
-	dockerfile, err := loop.Run(ctx, fsys, client)
+	p := v2.NewPipeline(
+		v2.WithDetectors(react.NewReactDetector()),
+		v2.WithLLM(generate.New()),
+		v2.WithDockerDriver(docker.NewDriver()),
+	)
+	err = p.Run(ctx, repo)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, dockerfile)
 
 	// Build and run the container
-	containerID, err := buildAndRun(t, repo, dockerfile, []string{"80:80"})
+	containerID, err := buildAndRun(t, repo, "Dockerfile", []string{"80:80"})
 	assert.NoError(t, err)
 	defer cleanupContainer(t, containerID)
 

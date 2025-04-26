@@ -15,24 +15,31 @@ type Pipeline struct {
 // Option configures the pipeline
 type Option func(*Pipeline)
 
+// WithDetectors sets the detectors for the pipeline
+func WithDetectors(detectors ...core.Detector) Option {
+	return func(p *Pipeline) {
+		p.orchestrator.detector = core.DetectorChain(detectors)
+	}
+}
+
 // WithLLM sets the LLM provider for the pipeline
 func WithLLM(llm core.ChatCompletion) Option {
 	return func(p *Pipeline) {
-		p.orchestrator.llm = llm
+		p.orchestrator.chatCompletion = llm
 	}
 }
 
 // WithDockerDriver sets the Docker driver for the pipeline
 func WithDockerDriver(driver docker.Driver) Option {
 	return func(p *Pipeline) {
-		p.orchestrator.builder = driver
+		p.orchestrator.dockerDriver = driver
 	}
 }
 
 // NewPipeline creates a new v2 pipeline with the given options
 func NewPipeline(opts ...Option) *Pipeline {
 	p := &Pipeline{
-		orchestrator: New(nil, nil), // We'll override these with options
+		orchestrator: New(nil, nil, nil), // We'll override these with options
 	}
 
 	for _, opt := range opts {

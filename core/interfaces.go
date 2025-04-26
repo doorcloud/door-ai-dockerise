@@ -2,12 +2,13 @@ package core
 
 import (
 	"context"
+	"io/fs"
 )
 
 // StackInfo represents information about a detected stack
 type StackInfo struct {
-	Name string
-	Meta map[string]string
+	Name      string
+	BuildTool string
 }
 
 // Fact represents a fact about a stack
@@ -22,9 +23,9 @@ type Message struct {
 	Content string
 }
 
-// Detector detects the type of application in a directory
+// Detector detects the type of application stack
 type Detector interface {
-	Detect(ctx context.Context, dir string) (StackInfo, error)
+	Detect(ctx context.Context, fsys fs.FS) (StackInfo, error)
 }
 
 // Generator generates a Dockerfile for a given stack
@@ -37,18 +38,24 @@ type Verifier interface {
 	Verify(ctx context.Context, root string, generatedFile string) error
 }
 
-// ChatCompletion is responsible for chat-based completions
+// ChatCompletion handles LLM interactions
 type ChatCompletion interface {
-	Chat(ctx context.Context, msgs []Message) (Message, error)
+	GatherFacts(ctx context.Context, fsys fs.FS, stack StackInfo) (Facts, error)
+	GenerateDockerfile(ctx context.Context, facts Facts) (string, error)
+}
+
+// FactProvider provides facts about a stack
+type FactProvider interface {
+	Facts(ctx context.Context, stack StackInfo) ([]Fact, error)
 }
 
 // DetectorChain implements Detector by trying each detector in sequence
 type DetectorChain []Detector
 
 // Detect implements the Detector interface for DetectorChain
-func (c DetectorChain) Detect(ctx context.Context, dir string) (StackInfo, error) {
+func (c DetectorChain) Detect(ctx context.Context, fsys fs.FS) (StackInfo, error) {
 	for _, d := range c {
-		info, err := d.Detect(ctx, dir)
+		info, err := d.Detect(ctx, fsys)
 		if err != nil {
 			return StackInfo{}, err
 		}
@@ -57,4 +64,11 @@ func (c DetectorChain) Detect(ctx context.Context, dir string) (StackInfo, error
 		}
 	}
 	return StackInfo{}, nil
+}
+
+// Facts contains information about the application stack
+type Facts struct {
+	StackType string
+	BuildTool string
+	// Add more fields as needed
 }

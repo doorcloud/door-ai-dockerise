@@ -3,31 +3,52 @@ package docker
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 )
 
-// dockerDriver provides Docker operations using the Docker CLI
-type dockerDriver struct {
-	// Add any necessary fields here
-}
+// dockerDriver implements the Driver interface
+type dockerDriver struct{}
 
 // NewDriver creates a new Docker driver
 func NewDriver() Driver {
 	return &dockerDriver{}
 }
 
-// Build builds a Docker image from the given context
-func (d *dockerDriver) Build(ctx context.Context, context io.Reader, options BuildOptions) error {
-	// Implementation here
+// Build builds a Docker image from a Dockerfile
+func (d *dockerDriver) Build(ctx context.Context, dockerfilePath string, opts BuildOptions) error {
+	// Prepare docker build command
+	args := []string{
+		"build",
+		"-f", dockerfilePath,
+	}
+
+	// Add tags
+	for _, tag := range opts.Tags {
+		args = append(args, "-t", tag)
+	}
+
+	// Add context
+	args = append(args, opts.Context)
+
+	// Run docker build
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker build failed: %v\nOutput: %s", err, output)
+	}
+
 	return nil
 }
 
 // Push pushes a Docker image to a registry
 func (d *dockerDriver) Push(ctx context.Context, image string) error {
-	// Implementation here
+	cmd := exec.CommandContext(ctx, "docker", "push", image)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker push failed: %v\nOutput: %s", err, output)
+	}
 	return nil
 }
 

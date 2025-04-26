@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"io"
 )
 
 // MockDriver is a mock implementation of the Docker driver
@@ -14,7 +13,7 @@ func NewMockDriver() *MockDriver {
 }
 
 // Build implements the Docker driver interface
-func (d *MockDriver) Build(ctx context.Context, context io.Reader, options BuildOptions) error {
+func (d *MockDriver) Build(ctx context.Context, dockerfilePath string, opts BuildOptions) error {
 	return nil
 }
 
