@@ -1,32 +1,28 @@
 package drivers
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 	"github.com/doorcloud/door-ai-dockerise/drivers/k8sjob"
 )
 
-// Select returns the appropriate build driver based on the BUILD_DRIVER environment variable
-func Select(driver string) (core.BuildDriver, error) {
+// Default returns the default build driver (Docker)
+func Default() core.BuildDriver {
+	engine, err := docker.NewEngine()
+	if err != nil {
+		return nil
+	}
+	return engine
+}
+
+// Select returns a build driver based on the driver name
+func Select(driver string) core.BuildDriver {
 	switch driver {
-	case "docker", "":
-		return docker.NewEngine()
+	case "docker":
+		return Default()
 	case "k8s":
 		return k8sjob.NewJob()
 	default:
-		return nil, fmt.Errorf("unsupported build driver: %s", driver)
+		return Default()
 	}
-}
-
-// Default returns the default build driver (Docker engine)
-func Default() core.BuildDriver {
-	driver, err := Select(os.Getenv("BUILD_DRIVER"))
-	if err != nil {
-		// Fallback to Docker engine
-		driver, _ = Select("docker")
-	}
-	return driver
 }

@@ -74,9 +74,9 @@ func (o *Orchestrator) Run(
 	ctx context.Context,
 	root string,
 	spec *core.Spec,
-	logs io.Writer,
+	log core.LogStreamer,
 ) (string, error) {
-	o.logf("Starting Dockerfile generation for %s with build timeout of %d minutes", root, o.buildTimeout)
+	log.Info(fmt.Sprintf("Starting Dockerfile generation for %s with build timeout of %d minutes", root, o.buildTimeout))
 
 	// Create a context with the build timeout
 	buildCtx, cancel := context.WithTimeout(ctx, time.Duration(o.buildTimeout)*time.Minute)
@@ -95,8 +95,9 @@ func (o *Orchestrator) Run(
 		}
 	} else if o.cachedStack.Name == "" {
 		// Code-first mode: detect stack if not cached
-		stack, err = o.detectStack(ctx, root, logs)
+		stack, err = o.detectStack(ctx, root, log)
 		if err != nil {
+			log.Error(fmt.Sprintf("Detection failed: %v", err))
 			return "", fmt.Errorf("detection failed: %w", err)
 		}
 		o.cachedStack = stack
@@ -104,27 +105,29 @@ func (o *Orchestrator) Run(
 		// Use cached stack info
 		stack = o.cachedStack
 	}
-	o.logf("Using stack: %s", stack.Name)
+	log.Info(fmt.Sprintf("Using stack: %s", stack.Name))
 
 	// 2. Gather facts
 	var facts core.Facts
 	if o.cachedFacts.StackType == "" {
-		facts, err = o.gatherFacts(ctx, root, stack, logs)
+		facts, err = o.gatherFacts(ctx, root, stack, log)
 		if err != nil {
+			log.Error(fmt.Sprintf("Fact gathering failed: %v", err))
 			return "", fmt.Errorf("fact gathering failed: %w", err)
 		}
 		o.cachedFacts = facts
 	} else {
 		facts = o.cachedFacts
 	}
-	o.logf("Using facts for stack: %s", stack.Name)
+	log.Info(fmt.Sprintf("Using facts for stack: %s", stack.Name))
 
 	// 3. Generate initial Dockerfile
 	dockerfile, err := o.generator.Generate(ctx, facts)
 	if err != nil {
+		log.Error(fmt.Sprintf("Generation failed: %v", err))
 		return "", fmt.Errorf("generation failed: %w", err)
 	}
-	o.logf("Generated Dockerfile")
+	log.Info("Generated Dockerfile")
 
 	// Create build input
 	buildInput := core.BuildInput{
@@ -138,34 +141,37 @@ func (o *Orchestrator) Run(
 		// Check for context cancellation
 		select {
 		case <-buildCtx.Done():
+			log.Error("Build context cancelled")
 			return "", buildCtx.Err()
 		default:
 		}
 
 		// Build the image
-		_, err := o.builder.Build(buildCtx, buildInput, logs)
+		_, err := o.builder.Build(buildCtx, buildInput, log)
 		if err == nil {
 			return dockerfile, nil
 		}
 		lastErr = err
-		o.logf("Build failed (attempt %d/%d): %v", i+1, o.attempts, err)
+		log.Error(fmt.Sprintf("Build failed (attempt %d/%d): %v", i+1, o.attempts, err))
 
 		if i < o.attempts-1 {
 			// Try to fix the Dockerfile
 			newDockerfile, fixErr := o.generator.Fix(ctx, dockerfile, err.Error())
 			if fixErr != nil {
-				o.logf("Failed to fix Dockerfile: %v", fixErr)
+				log.Error(fmt.Sprintf("Failed to fix Dockerfile: %v", fixErr))
 				continue
 			}
 			dockerfile = newDockerfile
 			buildInput.Dockerfile = newDockerfile
-			o.logf("Fixed Dockerfile, retrying build")
+			log.Info("Fixed Dockerfile, retrying build")
 		}
 	}
 
 	if lastErr != nil {
+		log.Error(fmt.Sprintf("Build failed after %d attempts: %v", o.attempts, lastErr))
 		return "", fmt.Errorf("build failed after %d attempts: %w", o.attempts, lastErr)
 	}
+	log.Error(fmt.Sprintf("Build failed after %d attempts", o.attempts))
 	return "", fmt.Errorf("build failed after %d attempts", o.attempts)
 }
 

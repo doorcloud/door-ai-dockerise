@@ -5,39 +5,23 @@ package k8sjob
 
 import (
 	"context"
-	"io"
-	"os"
+	"fmt"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
-// Job implements the core.BuildDriver interface using Kubernetes jobs
-type Job struct {
-	namespace    string
-	imageBuilder string
+// DummyJob implements core.BuildDriver for k8s jobs
+type DummyJob struct{}
+
+// NewJob creates a new k8s job driver
+func NewJob() core.BuildDriver {
+	return &DummyJob{}
 }
 
-// NewJob creates a new Kubernetes job driver
-func NewJob() (*Job, error) {
-	namespace := os.Getenv("K8S_NAMESPACE")
-	if namespace == "" {
-		namespace = "dockerise"
-	}
-
-	imageBuilder := os.Getenv("K8S_IMAGE_BUILDER")
-	if imageBuilder == "" {
-		imageBuilder = "ghcr.io/kaniko-project/executor:v1.21.0"
-	}
-
-	return &Job{
-		namespace:    namespace,
-		imageBuilder: imageBuilder,
-	}, nil
-}
-
-// Build implements the core.BuildDriver interface
-func (j *Job) Build(ctx context.Context, in core.BuildInput, w io.Writer) (core.ImageRef, error) {
-	// TODO: Implement Kubernetes job creation and log streaming
-	// This is a stub implementation that will be completed later
-	return core.ImageRef{}, nil
+// Build implements core.BuildDriver
+func (j *DummyJob) Build(ctx context.Context, in core.BuildInput, log core.LogStreamer) (core.ImageRef, error) {
+	// TODO: Implement k8s job build
+	log.Info("Starting k8s job build")
+	log.Error("k8s job build not implemented")
+	return core.ImageRef{}, fmt.Errorf("k8s job build not implemented")
 }

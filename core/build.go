@@ -21,9 +21,19 @@ func (r ImageRef) String() string {
 	return r.Name
 }
 
+// LogStreamer defines the interface for streaming build logs
+type LogStreamer interface {
+	// Info writes an informational message
+	Info(msg string)
+	// Error writes an error message
+	Error(msg string)
+	// Write implements io.Writer for raw log output
+	Write(p []byte) (n int, err error)
+}
+
 // BuildDriver defines the interface for building Docker images
 type BuildDriver interface {
 	// Build creates a Docker image from the given input
-	// The out stream receives live logs; Orchestrator forwards it to CLI / API
-	Build(ctx context.Context, in BuildInput, out io.Writer) (ImageRef, error)
+	// The log streamer receives live logs; Orchestrator forwards it to CLI / API
+	Build(ctx context.Context, in BuildInput, log LogStreamer) (ImageRef, error)
 }

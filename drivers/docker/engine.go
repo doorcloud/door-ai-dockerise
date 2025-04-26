@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/docker/docker/api/types"
@@ -24,7 +25,7 @@ func NewEngine() (*Engine, error) {
 }
 
 // Build implements the core.BuildDriver interface
-func (e *Engine) Build(ctx context.Context, in core.BuildInput, w io.Writer) (core.ImageRef, error) {
+func (e *Engine) Build(ctx context.Context, in core.BuildInput, log core.LogStreamer) (core.ImageRef, error) {
 	// Set build options
 	opts := types.ImageBuildOptions{
 		Dockerfile: "Dockerfile",
@@ -35,13 +36,15 @@ func (e *Engine) Build(ctx context.Context, in core.BuildInput, w io.Writer) (co
 	// Start the build
 	resp, err := e.cli.ImageBuild(ctx, in.ContextTar, opts)
 	if err != nil {
+		log.Error(fmt.Sprintf("Failed to start build: %v", err))
 		return core.ImageRef{}, err
 	}
 	defer resp.Body.Close()
 
 	// Stream build output
-	_, err = io.Copy(w, resp.Body)
+	_, err = io.Copy(log, resp.Body)
 	if err != nil {
+		log.Error(fmt.Sprintf("Failed to stream build output: %v", err))
 		return core.ImageRef{}, err
 	}
 
