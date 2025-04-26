@@ -13,15 +13,34 @@ import (
 )
 
 var tpl = template.Must(template.New("reactDockerfile").Parse(`# build stage
-FROM node:18-alpine AS build
+FROM node:18-alpine AS builder
 WORKDIR /app
-COPY . .
+COPY package*.json ./
 {{if .HasLockfile}}RUN npm ci --silent{{else}}RUN npm install{{end}}
+COPY . .
 RUN npm run build
 
 # runtime
+FROM node:18-alpine
+WORKDIR /app
+COPY --from=builder /app/build ./build
+COPY package*.json ./
+{{if .HasLockfile}}RUN npm ci --silent{{else}}RUN npm install{{end}}
+
+# if the project defines a "start" script, honour it
+# otherwise install serve and serve the static build
+RUN if jq -e '.scripts.start' < package.json >/dev/null; then \
+      echo 'using custom start script'; \
+    else \
+      npm install --silent --global serve; \
+    fi
+
+EXPOSE 3000
+CMD ["sh","-c","if jq -e '.scripts.start' < package.json >/dev/null; then npm run start; else serve -s build -l 3000; fi"]
+
+# runtime
 FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
+COPY --from=builder /app/build /usr/share/nginx/html
 EXPOSE {{index .Ports 0}}
 {{if .Health}}HEALTHCHECK CMD curl -f http://localhost:{{index .Ports 0}}{{.Health}} || exit 1{{end}}`))
 
