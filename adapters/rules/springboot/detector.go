@@ -3,6 +3,7 @@ package springboot
 import (
 	"io/fs"
 	"path/filepath"
+	"strings"
 )
 
 // SpringBootDetector implements detection rules for Spring Boot projects
@@ -35,7 +36,7 @@ func (d SpringBootDetector) Detect(fsys fs.FS) bool {
 		}
 		if !d.IsDir() && filepath.Ext(path) == ".java" {
 			content, err := fs.ReadFile(fsys, path)
-			if err == nil && (contains(string(content), "@SpringBootApplication") || contains(string(content), "spring-boot-starter")) {
+			if err == nil && (strings.Contains(string(content), "@SpringBootApplication") || strings.Contains(string(content), "spring-boot-starter")) {
 				hasSpringBoot = true
 				return fs.SkipDir
 			}

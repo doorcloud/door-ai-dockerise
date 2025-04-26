@@ -2,7 +2,7 @@ package node
 
 import (
 	"context"
-	"os"
+	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/rules/node"
 	"github.com/doorcloud/door-ai-dockerise/core"
@@ -19,14 +19,11 @@ func NewNodeDetector() *NodeDetector {
 }
 
 // Detect implements the core.Detector interface
-func (n *NodeDetector) Detect(ctx context.Context, dir string) (core.StackInfo, error) {
-	fsys := os.DirFS(dir)
+func (n *NodeDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
 	if n.d.Detect(fsys) {
 		return core.StackInfo{
-			Name: "node",
-			Meta: map[string]string{
-				"runtime": "node",
-			},
+			Name:      "node",
+			BuildTool: "npm",
 		}, nil
 	}
 	return core.StackInfo{}, nil

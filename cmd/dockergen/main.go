@@ -2,28 +2,48 @@ package main
 
 import (
 	"context"
-	"flag"
 	"log"
 	"os"
-	"time"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
+	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
+	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
+	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
-	"github.com/doorcloud/door-ai-dockerise/providers/llm/openai"
 )
 
 func main() {
-	rootDir := flag.String("root", ".", "Root directory to analyze")
-	flag.Parse()
+	// Create context
+	ctx := context.Background()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+	// Create mock LLM for testing
+	mockLLM := mock.NewMockLLM()
 
-	p := v2.NewPipeline(
-		v2.WithLLM(openai.New(os.Getenv("OPENAI_API_KEY"))),
-		v2.WithDockerDriver(docker.NewDriver()),
-	)
-	if err := p.Run(ctx, *rootDir); err != nil {
-		log.Fatalf("Pipeline failed: %v", err)
+	// Create pipeline with all components
+	p := v2.New(v2.Options{
+		Detectors: []core.Detector{
+			detectors.NewReact(),
+			springboot.NewSpringBootDetector(),
+		},
+		FactProviders: []core.FactProvider{
+			facts.NewStatic(),
+		},
+		Generator:  generate.NewLLM(mockLLM),
+		Verifier:   docker.NewDriver(),
+		MaxRetries: 3,
+	})
+
+	// Get source path from command line arguments
+	if len(os.Args) < 2 {
+		log.Fatal("Please provide a source path")
+	}
+	sourcePath := os.Args[1]
+
+	// Run the pipeline
+	if err := p.Run(ctx, sourcePath); err != nil {
+		log.Fatal(err)
 	}
 }

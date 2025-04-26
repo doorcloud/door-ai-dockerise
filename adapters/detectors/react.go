@@ -2,7 +2,7 @@ package detectors
 
 import (
 	"context"
-	"os"
+	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/rules/react"
 	"github.com/doorcloud/door-ai-dockerise/core"
@@ -16,14 +16,11 @@ func NewReact() *React {
 	return &React{d: react.ReactDetector{}}
 }
 
-func (r *React) Detect(ctx context.Context, dir string) (core.StackInfo, error) {
-	fsys := os.DirFS(dir)
+func (r *React) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
 	if r.d.Detect(fsys) {
 		return core.StackInfo{
-			Name: "react",
-			Meta: map[string]string{
-				"framework": "react",
-			},
+			Name:      "react",
+			BuildTool: "npm",
 		}, nil
 	}
 	return core.StackInfo{}, nil

@@ -2,6 +2,7 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -9,19 +10,33 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 )
 
+var (
+	ErrNoStackDetected = errors.New("no stack detected")
+)
+
 // Orchestrator coordinates the Dockerfile generation pipeline
 type Orchestrator struct {
-	detector       core.Detector
-	chatCompletion core.ChatCompletion
-	dockerDriver   docker.Driver
+	detector     core.Detector
+	factProvider core.FactProvider
+	generator    core.Generator
+	dockerDriver docker.Driver
+	maxRetries   int
 }
 
-// New creates a new orchestrator
-func New(detector core.Detector, chatCompletion core.ChatCompletion, dockerDriver docker.Driver) *Orchestrator {
+// NewOrchestrator creates a new orchestrator
+func NewOrchestrator(
+	detector core.Detector,
+	factProvider core.FactProvider,
+	generator core.Generator,
+	dockerDriver docker.Driver,
+	maxRetries int,
+) *Orchestrator {
 	return &Orchestrator{
-		detector:       detector,
-		chatCompletion: chatCompletion,
-		dockerDriver:   dockerDriver,
+		detector:     detector,
+		factProvider: factProvider,
+		generator:    generator,
+		dockerDriver: dockerDriver,
+		maxRetries:   maxRetries,
 	}
 }
 
@@ -36,14 +51,19 @@ func (o *Orchestrator) Run(ctx context.Context, dir string) error {
 		return err
 	}
 
+	// If no stack was detected, return an error
+	if stack.Name == "" {
+		return ErrNoStackDetected
+	}
+
 	// Gather facts about the stack
-	facts, err := o.chatCompletion.GatherFacts(ctx, fsys, stack)
+	facts, err := o.factProvider.Facts(ctx, stack)
 	if err != nil {
 		return err
 	}
 
 	// Generate Dockerfile
-	dockerfile, err := o.chatCompletion.GenerateDockerfile(ctx, facts)
+	dockerfile, err := o.generator.Generate(ctx, stack, facts)
 	if err != nil {
 		return err
 	}

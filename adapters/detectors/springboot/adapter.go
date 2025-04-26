@@ -2,7 +2,7 @@ package springboot
 
 import (
 	"context"
-	"os"
+	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/rules/springboot"
 	"github.com/doorcloud/door-ai-dockerise/core"
@@ -16,15 +16,11 @@ func NewSpringBootDetector() *SpringBootDetector {
 	return &SpringBootDetector{d: springboot.SpringBootDetector{}}
 }
 
-func (s *SpringBootDetector) Detect(ctx context.Context, dir string) (core.StackInfo, error) {
-	fsys := os.DirFS(dir)
+func (s *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
 	if s.d.Detect(fsys) {
 		return core.StackInfo{
-			Name: "springboot",
-			Meta: map[string]string{
-				"framework": "springboot",
-				"language":  "java",
-			},
+			Name:      "springboot",
+			BuildTool: "maven",
 		}, nil
 	}
 	return core.StackInfo{}, nil

@@ -2,6 +2,7 @@ package react
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -26,10 +27,8 @@ func TestReactDetector(t *testing.T) {
 			name: "react project",
 			path: absPath,
 			wantInfo: core.StackInfo{
-				Name: "react",
-				Meta: map[string]string{
-					"framework": "react",
-				},
+				Name:      "react",
+				BuildTool: "npm",
 			},
 			wantErr: false,
 		},
@@ -37,25 +36,24 @@ func TestReactDetector(t *testing.T) {
 			name:     "non-existent path",
 			path:     "/nonexistent/path",
 			wantInfo: core.StackInfo{},
-			wantErr:  false,
+			wantErr:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := NewReactDetector()
-			got, err := d.Detect(context.Background(), tt.path)
+			fsys := os.DirFS(tt.path)
+			got, err := d.Detect(context.Background(), fsys)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ReactDetector.Detect() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got.Name != tt.wantInfo.Name {
-				t.Errorf("ReactDetector.Detect() = %v, want %v", got, tt.wantInfo)
+				t.Errorf("ReactDetector.Detect() = %v, want %v", got.Name, tt.wantInfo.Name)
 			}
-			if got.Name != "" {
-				if got.Meta["framework"] != tt.wantInfo.Meta["framework"] {
-					t.Errorf("ReactDetector.Detect() framework = %v, want %v", got.Meta["framework"], tt.wantInfo.Meta["framework"])
-				}
+			if got.BuildTool != tt.wantInfo.BuildTool {
+				t.Errorf("ReactDetector.Detect() = %v, want %v", got.BuildTool, tt.wantInfo.BuildTool)
 			}
 		})
 	}

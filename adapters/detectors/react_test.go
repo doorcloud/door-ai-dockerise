@@ -78,10 +78,8 @@ export default App;`
 			name: "react project",
 			dir:  reactDir,
 			wantInfo: core.StackInfo{
-				Name: "react",
-				Meta: map[string]string{
-					"framework": "react",
-				},
+				Name:      "react",
+				BuildTool: "npm",
 			},
 			wantErr: false,
 		},
@@ -96,16 +94,17 @@ export default App;`
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewReact()
-			got, err := r.Detect(context.Background(), tt.dir)
+			fsys := os.DirFS(tt.dir)
+			got, err := r.Detect(context.Background(), fsys)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("React.Detect() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got.Name != tt.wantInfo.Name {
-				t.Errorf("React.Detect() = %v, want %v", got, tt.wantInfo)
+				t.Errorf("React.Detect() = %v, want %v", got.Name, tt.wantInfo.Name)
 			}
-			if got.Name != "" && got.Meta["framework"] != tt.wantInfo.Meta["framework"] {
-				t.Errorf("React.Detect() framework = %v, want %v", got.Meta["framework"], tt.wantInfo.Meta["framework"])
+			if got.BuildTool != tt.wantInfo.BuildTool {
+				t.Errorf("React.Detect() = %v, want %v", got.BuildTool, tt.wantInfo.BuildTool)
 			}
 		})
 	}

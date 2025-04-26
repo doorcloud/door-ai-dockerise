@@ -5,31 +5,44 @@ import (
 	"log"
 	"os"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
+	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
+	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
 )
 
 func main() {
-	// Create adapters
-	reactDetector := react.NewReactDetector()
-	generateAdapter := generate.New()
+	// Create context
+	ctx := context.Background()
 
-	// Create Docker driver
-	dockerDriver := docker.NewDriver()
+	// Create mock LLM for testing
+	mockLLM := mock.NewMockLLM()
 
-	// Create orchestrator
-	orchestrator := v2.New(reactDetector, generateAdapter, dockerDriver)
+	// Create pipeline with all components
+	p := v2.NewPipeline(
+		v2.WithDetectors(
+			detectors.NewReact(),
+			springboot.NewSpringBootDetector(),
+		),
+		v2.WithFactProviders(
+			facts.NewStatic(),
+		),
+		v2.WithGenerator(generate.NewLLM(mockLLM)),
+		v2.WithDockerDriver(docker.NewDriver()),
+		v2.WithMaxRetries(3),
+	)
 
-	// Get working directory
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Failed to get working directory: %v", err)
+	// Get source path from command line arguments
+	if len(os.Args) < 2 {
+		log.Fatal("Please provide a source path")
 	}
+	sourcePath := os.Args[1]
 
-	// Run pipeline
-	if err := orchestrator.Run(context.Background(), dir); err != nil {
-		log.Fatalf("Pipeline failed: %v", err)
+	// Run the pipeline
+	if err := p.Run(ctx, sourcePath); err != nil {
+		log.Fatal(err)
 	}
 }
