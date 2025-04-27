@@ -16,14 +16,15 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/doorcloud/door-ai-dockerise/adapters/log/plain"
 	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/core/logs"
 	"github.com/doorcloud/door-ai-dockerise/providers/llm/mock"
 )
 
 func runCommand(dir string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = logs.NewTagWriter(os.Stdout, "cmd")
+	cmd.Stderr = logs.NewTagWriter(os.Stderr, "cmd")
 	return cmd.Run()
 }
 
@@ -49,8 +50,8 @@ func buildAndRun(t *testing.T, dir string, dockerfile string, ports []string) (s
 	// Build image
 	buildCtx := filepath.Join(dir, ".")
 	cmd := exec.Command("docker", "build", "-t", "test-image", buildCtx)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = logs.NewTagWriter(os.Stdout, "docker build")
+	cmd.Stderr = logs.NewTagWriter(os.Stderr, "docker build")
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("build image: %w", err)
 	}
@@ -67,6 +68,7 @@ func buildAndRun(t *testing.T, dir string, dockerfile string, ports []string) (s
 		return "", fmt.Errorf("run container: %w", err)
 	}
 
+	logs.WriteTagged(os.Stdout, "docker run", "%s", output)
 	return string(output), nil
 }
 
