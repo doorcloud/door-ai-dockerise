@@ -13,6 +13,7 @@ type StackInfo struct {
 	SpecProvided  bool
 	Confidence    float64
 	DetectedFiles []string
+	Port          int
 }
 
 // Fact represents a fact about a stack
@@ -96,10 +97,11 @@ func (c DetectorChain) SetLogSink(logSink LogSink) {
 	}
 }
 
-// Facts contains information about the application stack
+// Facts represents facts about a stack
 type Facts struct {
 	StackType string
 	BuildTool string
+	Port      int
 	// Add more fields as needed
 }
 
