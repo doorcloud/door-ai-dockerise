@@ -166,7 +166,7 @@ func (o *Orchestrator) detectStack(
 	o.logf("Detecting stack...")
 	fsys := os.DirFS(root)
 	for _, d := range o.detectors {
-		stack, found, err := d.Detect(ctx, fsys)
+		stack, found, err := d.Detect(ctx, fsys, &writerLogSink{w: logs})
 		if err == nil && found {
 			if logs != nil {
 				fmt.Fprintf(logs, "Detected stack: %s\n", stack.Name)
@@ -175,6 +175,17 @@ func (o *Orchestrator) detectStack(
 		}
 	}
 	return core.StackInfo{}, fmt.Errorf("no stack detected")
+}
+
+// writerLogSink adapts an io.Writer to a core.LogSink
+type writerLogSink struct {
+	w io.Writer
+}
+
+func (w *writerLogSink) Log(msg string) {
+	if w.w != nil {
+		io.WriteString(w.w, msg)
+	}
 }
 
 func (o *Orchestrator) gatherFacts(

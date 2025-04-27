@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"io"
 	"io/fs"
 )
 
@@ -28,11 +27,19 @@ type Message struct {
 	Content string
 }
 
+// LogSink is an interface for logging messages
+type LogSink interface {
+	Log(msg string)
+}
+
 // Detector detects the type of application stack
 type Detector interface {
-	Detect(ctx context.Context, fsys fs.FS) (StackInfo, bool, error)
+	// Detect attempts to detect the stack type in the given filesystem
+	Detect(ctx context.Context, fsys fs.FS, logSink LogSink) (StackInfo, bool, error)
+	// Name returns the name of the detector
 	Name() string
-	SetLogSink(w io.Writer)
+	// SetLogSink sets the log sink for the detector
+	SetLogSink(logSink LogSink)
 }
 
 // Generator generates a Dockerfile for a given stack
@@ -62,9 +69,9 @@ type FactProvider interface {
 type DetectorChain []Detector
 
 // Detect implements the Detector interface for DetectorChain
-func (c DetectorChain) Detect(ctx context.Context, fsys fs.FS) (StackInfo, bool, error) {
+func (c DetectorChain) Detect(ctx context.Context, fsys fs.FS, logSink LogSink) (StackInfo, bool, error) {
 	for _, d := range c {
-		info, found, err := d.Detect(ctx, fsys)
+		info, found, err := d.Detect(ctx, fsys, logSink)
 		if err != nil {
 			return StackInfo{}, false, err
 		}
@@ -81,9 +88,11 @@ func (c DetectorChain) Name() string {
 }
 
 // SetLogSink sets the log sink for all detectors in the chain
-func (c DetectorChain) SetLogSink(w io.Writer) {
+func (c DetectorChain) SetLogSink(logSink LogSink) {
 	for _, d := range c {
-		d.SetLogSink(w)
+		if chain, ok := d.(DetectorChain); ok {
+			chain.SetLogSink(logSink)
+		}
 	}
 }
 

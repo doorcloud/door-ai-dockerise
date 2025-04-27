@@ -1,25 +1,45 @@
 package react
 
 import (
+	"context"
 	"io/fs"
 	"path/filepath"
 	"strings"
+
+	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
 // ReactDetector implements detection rules for React projects
-type ReactDetector struct{}
+type ReactDetector struct {
+	logSink core.LogSink
+}
+
+// NewReactDetector creates a new React detector
+func NewReactDetector() *ReactDetector {
+	return &ReactDetector{}
+}
+
+// Name returns the detector name
+func (d *ReactDetector) Name() string {
+	return "react"
+}
+
+// SetLogSink sets the log sink for the detector
+func (d *ReactDetector) SetLogSink(logSink core.LogSink) {
+	d.logSink = logSink
+}
 
 // Detect checks if the given filesystem contains a React project
-func (d ReactDetector) Detect(fsys fs.FS) bool {
+func (d *ReactDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
 	// Check for package.json
 	pkgJson, err := fs.ReadFile(fsys, "package.json")
 	if err != nil {
-		return false
+		return core.StackInfo{}, false, nil
 	}
 
 	// Check for React in package.json
 	if !strings.Contains(string(pkgJson), `"react"`) {
-		return false
+		return core.StackInfo{}, false, nil
 	}
 
 	// Check for React-specific files
@@ -38,5 +58,20 @@ func (d ReactDetector) Detect(fsys fs.FS) bool {
 		return nil
 	})
 
-	return hasReactFiles || strings.Contains(string(pkgJson), `"react-scripts"`)
+	if !hasReactFiles && !strings.Contains(string(pkgJson), `"react-scripts"`) {
+		return core.StackInfo{}, false, nil
+	}
+
+	if d.logSink != nil {
+		d.logSink.Log("detector=react found=true")
+	}
+
+	return core.StackInfo{
+		Name:      "react",
+		BuildTool: "npm",
+		DetectedFiles: []string{
+			"package.json",
+			"src/index.js",
+		},
+	}, true, nil
 }

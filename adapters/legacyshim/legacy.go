@@ -20,7 +20,7 @@ func NewWrapper(detector core.Detector) *Wrapper {
 }
 
 // Detect implements the core.Detector interface
-func (w *Wrapper) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
+func (w *Wrapper) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
 	// Create a temporary directory
 	tmpDir, err := os.MkdirTemp("", "legacyshim-*")
 	if err != nil {
@@ -52,6 +52,6 @@ func (w *Wrapper) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool,
 	}
 
 	// Call the legacy detector with the temporary directory
-	info, found, err := w.detector.Detect(ctx, os.DirFS(tmpDir))
+	info, found, err := w.detector.Detect(ctx, os.DirFS(tmpDir), logSink)
 	return info, found, err
 }

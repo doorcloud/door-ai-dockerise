@@ -1,18 +1,21 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
+	"github.com/doorcloud/door-ai-dockerise/adapters/rules/react"
+	"github.com/doorcloud/door-ai-dockerise/adapters/rules/springboot"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	"github.com/doorcloud/door-ai-dockerise/pipeline"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReactE2E(t *testing.T) {
@@ -23,18 +26,22 @@ func TestReactE2E(t *testing.T) {
 	// Create mock LLM
 	mockLLM := mock.NewMockLLM()
 
+	// Create buffer for log output
+	var logBuf bytes.Buffer
+
 	// Create pipeline with mock components
-	p := v2.NewPipeline(
-		v2.WithDetectors(
-			detectors.NewReact(),
+	p := pipeline.NewPipeline(
+		pipeline.WithDetectors(
+			react.NewReactDetector(),
 			springboot.NewSpringBootDetector(),
 		),
-		v2.WithFactProviders(
+		pipeline.WithFactProviders(
 			facts.NewStatic(),
 		),
-		v2.WithGenerator(generate.NewLLM(mockLLM)),
-		v2.WithDockerDriver(docker.NewMockDriver()),
-		v2.WithMaxRetries(3),
+		pipeline.WithGenerator(generate.NewLLM(mockLLM)),
+		pipeline.WithDockerDriver(docker.NewMockDriver()),
+		pipeline.WithMaxRetries(3),
+		pipeline.WithLogSink(&logBuf),
 	)
 
 	// Create test context
@@ -56,4 +63,9 @@ func TestReactE2E(t *testing.T) {
 	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
 		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
 	}
+
+	// Verify log output
+	logOutput := logBuf.String()
+	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
+	assert.False(t, strings.Contains(logOutput, "detector=springboot found=true"), "Unexpected SpringBoot detector log line")
 }

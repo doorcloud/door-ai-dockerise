@@ -8,6 +8,19 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
+// MockLogSink implements core.LogSink for testing
+type MockLogSink struct {
+	Messages []string
+}
+
+// Log implements core.LogSink
+func (m *MockLogSink) Log(msg string) {
+	if m.Messages == nil {
+		m.Messages = make([]string, 0)
+	}
+	m.Messages = append(m.Messages, msg)
+}
+
 // MockLLM implements ChatCompletion with canned responses
 type MockLLM struct {
 	Responses map[string]string

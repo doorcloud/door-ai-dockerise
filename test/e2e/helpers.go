@@ -3,20 +3,20 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/adapters/verifiers"
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	"github.com/doorcloud/door-ai-dockerise/pipeline"
 )
 
 // RunPipeline runs the pipeline on the given source directory
@@ -25,10 +25,10 @@ func RunPipeline(t *testing.T, sourceDir string) error {
 	mockLLM := mock.NewMockLLM()
 
 	// Create pipeline with mock components
-	p := v2.New(v2.Options{
+	p := pipeline.New(pipeline.Options{
 		Detectors: []core.Detector{
 			detectors.NewReact(),
-			springboot.NewSpringBootDetector(),
+			detectors.NewSpringBootDetector(),
 		},
 		FactProviders: []core.FactProvider{
 			facts.NewStatic(),
@@ -101,7 +101,7 @@ func (m *mockFactProvider) Facts(ctx context.Context, stack core.StackInfo) ([]c
 	}, nil
 }
 
-func setupTestEnvironment(t *testing.T) (*v2.Pipeline, string) {
+func setupTestEnvironment(t *testing.T) (*pipeline.Pipeline, string) {
 	// Create test directory
 	testDir, err := os.MkdirTemp("", "dockerfile-test-*")
 	if err != nil {
@@ -112,7 +112,7 @@ func setupTestEnvironment(t *testing.T) (*v2.Pipeline, string) {
 	dockerDriver := docker.NewMockDriver()
 
 	// Create pipeline with detectors
-	p := v2.New(v2.Options{
+	p := pipeline.New(pipeline.Options{
 		Detectors: detectors.DefaultDetectors(),
 		FactProviders: []core.FactProvider{
 			&mockFactProvider{},
@@ -122,4 +122,46 @@ func setupTestEnvironment(t *testing.T) (*v2.Pipeline, string) {
 	})
 
 	return p, testDir
+}
+
+// copyDir recursively copies a directory tree
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory
+		if path == src {
+			return nil
+		}
+
+		// Create the destination path
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		dstPath := filepath.Join(dst, relPath)
+
+		// Create directories
+		if info.IsDir() {
+			return os.MkdirAll(dstPath, info.Mode())
+		}
+
+		// Copy files
+		srcFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		dstFile, err := os.Create(dstPath)
+		if err != nil {
+			return err
+		}
+		defer dstFile.Close()
+
+		_, err = io.Copy(dstFile, srcFile)
+		return err
+	})
 }

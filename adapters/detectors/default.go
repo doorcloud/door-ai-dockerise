@@ -1,6 +1,7 @@
 package detectors
 
 import (
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
@@ -9,6 +10,6 @@ import (
 func DefaultDetectors() []core.Detector {
 	return []core.Detector{
 		springboot.NewSpringBootDetector(),
-		NewReact(),
+		react.NewReactDetector(),
 	}
 }

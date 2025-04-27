@@ -1,4 +1,4 @@
-package v2
+package pipeline
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
@@ -22,7 +21,7 @@ func TestPipeline_Run(t *testing.T) {
 	p := NewPipeline(
 		WithDetectors(
 			detectors.NewReact(),
-			springboot.NewSpringBootDetector(),
+			detectors.NewSpringBootDetector(),
 		),
 		WithFactProviders(
 			facts.NewStatic(),
@@ -67,7 +66,7 @@ func TestPipeline_Run_ErrorCases(t *testing.T) {
 	p := NewPipeline(
 		WithDetectors(
 			detectors.NewReact(),
-			springboot.NewSpringBootDetector(),
+			detectors.NewSpringBootDetector(),
 		),
 		WithFactProviders(
 			facts.NewStatic(),

@@ -1,4 +1,4 @@
-package v2
+package pipeline
 
 import (
 	"context"
@@ -46,7 +46,7 @@ func (o *Orchestrator) Run(ctx context.Context, path string) error {
 	fsys := os.DirFS(path)
 
 	// Detect stack
-	stack, found, err := o.detector.Detect(ctx, fsys)
+	stack, found, err := o.detector.Detect(ctx, fsys, nil)
 	if err != nil {
 		return fmt.Errorf("failed to detect stack: %w", err)
 	}

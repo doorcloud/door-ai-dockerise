@@ -11,26 +11,23 @@ import (
 )
 
 type React struct {
-	d       react.ReactDetector
-	logSink io.Writer
+	d       *react.ReactDetector
+	logSink core.LogSink
 }
 
 func NewReact() *React {
-	return &React{d: react.ReactDetector{}}
+	return &React{d: react.NewReactDetector()}
 }
 
-func (r *React) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
-	if r.d.Detect(fsys) {
-		info := core.StackInfo{
-			Name:          "react",
-			BuildTool:     "npm",
-			DetectedFiles: []string{"package.json"},
-		}
-
+func (r *React) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
+	info, found, err := r.d.Detect(ctx, fsys, logSink)
+	if err != nil {
+		return core.StackInfo{}, false, err
+	}
+	if found {
 		if r.logSink != nil {
-			io.WriteString(r.logSink, fmt.Sprintf("detector=%s found=true path=%s\n", r.Name(), info.DetectedFiles[0]))
+			r.logSink.Log(fmt.Sprintf("detector=%s found=true path=%s", r.Name(), info.DetectedFiles[0]))
 		}
-
 		return info, true, nil
 	}
 	return core.StackInfo{}, false, nil
@@ -42,6 +39,18 @@ func (r *React) Name() string {
 }
 
 // SetLogSink sets the log sink for the detector
-func (r *React) SetLogSink(w io.Writer) {
-	r.logSink = w
+func (r *React) SetLogSink(logSink core.LogSink) {
+	r.logSink = logSink
+	r.d.SetLogSink(logSink)
+}
+
+// writerLogSink adapts an io.Writer to a core.LogSink
+type writerLogSink struct {
+	w io.Writer
+}
+
+func (w *writerLogSink) Log(msg string) {
+	if w.w != nil {
+		io.WriteString(w.w, msg)
+	}
 }

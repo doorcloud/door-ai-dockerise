@@ -1,4 +1,4 @@
-package v2
+package pipeline
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func New(opts Options) *Pipeline {
 	// Inject log sink into detectors
 	if opts.LogSink != nil {
 		for _, d := range opts.Detectors {
-			d.SetLogSink(opts.LogSink)
+			d.SetLogSink(&writerLogSink{w: opts.LogSink})
 		}
 	}
 
@@ -133,7 +133,7 @@ func WithLogSink(logSink io.Writer) func(*Options) {
 // DetectStack detects the stack using a chain of detectors
 func DetectStack(ctx context.Context, chain core.DetectorChain, fsys fs.FS) (core.StackInfo, bool, error) {
 	for _, d := range chain {
-		info, found, err := d.Detect(ctx, fsys)
+		info, found, err := d.Detect(ctx, fsys, nil)
 		if err != nil {
 			return core.StackInfo{}, false, err
 		}
@@ -142,4 +142,15 @@ func DetectStack(ctx context.Context, chain core.DetectorChain, fsys fs.FS) (cor
 		}
 	}
 	return core.StackInfo{}, false, nil
+}
+
+// writerLogSink adapts an io.Writer to a core.LogSink
+type writerLogSink struct {
+	w io.Writer
+}
+
+func (w *writerLogSink) Log(msg string) {
+	if w.w != nil {
+		io.WriteString(w.w, msg)
+	}
 }

@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
+	"github.com/doorcloud/door-ai-dockerise/adapters/rules/react"
+	"github.com/doorcloud/door-ai-dockerise/adapters/rules/springboot"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	v2 "github.com/doorcloud/door-ai-dockerise/pipeline"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,7 +32,7 @@ func TestReactProject(t *testing.T) {
 	// Create pipeline with mock components
 	p := v2.NewPipeline(
 		v2.WithDetectors(
-			detectors.NewReact(),
+			react.NewReactDetector(),
 			springboot.NewSpringBootDetector(),
 		),
 		v2.WithFactProviders(
@@ -84,7 +84,7 @@ func TestReactIntegration(t *testing.T) {
 	// Create pipeline with mock components
 	p := v2.NewPipeline(
 		v2.WithDetectors(
-			detectors.NewReact(),
+			react.NewReactDetector(),
 			springboot.NewSpringBootDetector(),
 		),
 		v2.WithFactProviders(
@@ -199,7 +199,7 @@ func TestIntegration_React(t *testing.T) {
 	// Create pipeline
 	p := v2.NewPipeline(
 		v2.WithDetectors(
-			detectors.NewReact(),
+			react.NewReactDetector(),
 			springboot.NewSpringBootDetector(),
 		),
 		v2.WithFactProviders(
@@ -242,7 +242,7 @@ func TestReactSpecV2(t *testing.T) {
 	// Create pipeline with mock components
 	p := v2.NewPipeline(
 		v2.WithDetectors(
-			detectors.NewReact(),
+			react.NewReactDetector(),
 			springboot.NewSpringBootDetector(),
 		),
 		v2.WithFactProviders(

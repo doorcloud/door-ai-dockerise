@@ -5,13 +5,13 @@ import (
 	"log"
 	"os"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	"github.com/doorcloud/door-ai-dockerise/pipeline"
 )
 
 func main() {
@@ -22,17 +22,17 @@ func main() {
 	mockLLM := mock.NewMockLLM()
 
 	// Create pipeline with all components
-	p := v2.NewPipeline(
-		v2.WithDetectors(
-			detectors.NewReact(),
+	p := pipeline.NewPipeline(
+		pipeline.WithDetectors(
+			react.NewReactDetector(),
 			springboot.NewSpringBootDetector(),
 		),
-		v2.WithFactProviders(
+		pipeline.WithFactProviders(
 			facts.NewStatic(),
 		),
-		v2.WithGenerator(generate.NewLLM(mockLLM)),
-		v2.WithDockerDriver(docker.NewDriver()),
-		v2.WithMaxRetries(3),
+		pipeline.WithGenerator(generate.NewLLM(mockLLM)),
+		pipeline.WithDockerDriver(docker.NewDriver()),
+		pipeline.WithMaxRetries(3),
 	)
 
 	// Get source path from command line arguments

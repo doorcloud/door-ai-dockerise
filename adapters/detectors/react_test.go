@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/core/mock"
 )
 
 func TestReactDetector(t *testing.T) {
@@ -95,7 +96,8 @@ export default App;`
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewReact()
 			fsys := os.DirFS(tt.dir)
-			got, found, err := r.Detect(context.Background(), fsys)
+			mockLogSink := &mock.MockLogSink{}
+			got, found, err := r.Detect(context.Background(), fsys, mockLogSink)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("React.Detect() error = %v, wantErr %v", err, tt.wantErr)
 				return

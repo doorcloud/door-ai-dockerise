@@ -7,7 +7,7 @@ import (
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
+	"github.com/doorcloud/door-ai-dockerise/pipeline"
 	"github.com/doorcloud/door-ai-dockerise/providers/facts"
 	"github.com/doorcloud/door-ai-dockerise/providers/llm/openai"
 )
@@ -25,12 +25,13 @@ func main() {
 	dockerDriver := docker.NewMockDriver()
 
 	// Create pipeline with detectors
-	p := v2.New(v2.Options{
-		Detectors:     detectors.DefaultDetectors(),
-		FactProviders: facts.DefaultProviders(llmClient),
-		Generator:     llmClient,
-		Verifier:      dockerDriver,
-	})
+	p := pipeline.NewPipeline(
+		pipeline.WithDetectors(detectors.DefaultDetectors()...),
+		pipeline.WithFactProviders(facts.DefaultProviders(llmClient)...),
+		pipeline.WithGenerator(llmClient),
+		pipeline.WithDockerDriver(dockerDriver),
+		pipeline.WithMaxRetries(3),
+	)
 
 	// Run the pipeline
 	if err := p.Run(context.Background(), *dir); err != nil {
