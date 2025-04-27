@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"io"
 	"io/fs"
 )
 
@@ -31,6 +32,7 @@ type Message struct {
 type Detector interface {
 	Detect(ctx context.Context, fsys fs.FS) (StackInfo, bool, error)
 	Name() string
+	SetLogSink(w io.Writer)
 }
 
 // Generator generates a Dockerfile for a given stack
@@ -76,6 +78,13 @@ func (c DetectorChain) Detect(ctx context.Context, fsys fs.FS) (StackInfo, bool,
 // Name returns the detector chain name
 func (c DetectorChain) Name() string {
 	return "chain"
+}
+
+// SetLogSink sets the log sink for all detectors in the chain
+func (c DetectorChain) SetLogSink(w io.Writer) {
+	for _, d := range c {
+		d.SetLogSink(w)
+	}
 }
 
 // Facts contains information about the application stack

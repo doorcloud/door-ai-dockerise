@@ -1,9 +1,11 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
@@ -24,6 +26,9 @@ func TestReactProject(t *testing.T) {
 	// Create mock LLM
 	mockLLM := mock.NewMockLLM()
 
+	// Create buffer for log output
+	var logBuf bytes.Buffer
+
 	// Create pipeline with mock components
 	p := v2.NewPipeline(
 		v2.WithDetectors(
@@ -36,6 +41,7 @@ func TestReactProject(t *testing.T) {
 		v2.WithGenerator(generate.NewLLM(mockLLM)),
 		v2.WithDockerDriver(docker.NewMockDriver()),
 		v2.WithMaxRetries(3),
+		v2.WithLogSink(&logBuf),
 	)
 
 	// Create test context
@@ -57,6 +63,11 @@ func TestReactProject(t *testing.T) {
 	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
 		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
 	}
+
+	// Verify log output
+	logOutput := logBuf.String()
+	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
+	assert.False(t, strings.Contains(logOutput, "detector=springboot found=true"), "Unexpected SpringBoot detector log line")
 }
 
 func TestReactIntegration(t *testing.T) {
@@ -67,6 +78,9 @@ func TestReactIntegration(t *testing.T) {
 	// Create mock LLM
 	mockLLM := mock.NewMockLLM()
 
+	// Create buffer for log output
+	var logBuf bytes.Buffer
+
 	// Create pipeline with mock components
 	p := v2.NewPipeline(
 		v2.WithDetectors(
@@ -79,6 +93,7 @@ func TestReactIntegration(t *testing.T) {
 		v2.WithGenerator(generate.NewLLM(mockLLM)),
 		v2.WithDockerDriver(docker.NewMockDriver()),
 		v2.WithMaxRetries(3),
+		v2.WithLogSink(&logBuf),
 	)
 
 	// Create test context
@@ -100,6 +115,11 @@ func TestReactIntegration(t *testing.T) {
 	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
 		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
 	}
+
+	// Verify log output
+	logOutput := logBuf.String()
+	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
+	assert.False(t, strings.Contains(logOutput, "detector=springboot found=true"), "Unexpected SpringBoot detector log line")
 }
 
 func TestIntegration_React(t *testing.T) {
@@ -173,6 +193,9 @@ func TestIntegration_React(t *testing.T) {
 	// Create mock LLM
 	mockLLM := mock.NewMockLLM()
 
+	// Create buffer for log output
+	var logBuf bytes.Buffer
+
 	// Create pipeline
 	p := v2.NewPipeline(
 		v2.WithDetectors(
@@ -185,6 +208,7 @@ func TestIntegration_React(t *testing.T) {
 		v2.WithGenerator(generate.NewLLM(mockLLM)),
 		v2.WithDockerDriver(docker.NewMockDriver()),
 		v2.WithMaxRetries(3),
+		v2.WithLogSink(&logBuf),
 	)
 
 	// Run the pipeline
@@ -197,6 +221,11 @@ func TestIntegration_React(t *testing.T) {
 	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
 		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
 	}
+
+	// Verify log output
+	logOutput := logBuf.String()
+	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
+	assert.False(t, strings.Contains(logOutput, "detector=springboot found=true"), "Unexpected SpringBoot detector log line")
 }
 
 func TestReactSpecV2(t *testing.T) {
@@ -206,6 +235,9 @@ func TestReactSpecV2(t *testing.T) {
 
 	// Create mock LLM
 	mockLLM := mock.NewMockLLM()
+
+	// Create buffer for log output
+	var logBuf bytes.Buffer
 
 	// Create pipeline with mock components
 	p := v2.NewPipeline(
@@ -219,6 +251,7 @@ func TestReactSpecV2(t *testing.T) {
 		v2.WithGenerator(generate.NewLLM(mockLLM)),
 		v2.WithDockerDriver(docker.NewMockDriver()),
 		v2.WithMaxRetries(3),
+		v2.WithLogSink(&logBuf),
 	)
 
 	// Create test context
@@ -240,4 +273,9 @@ func TestReactSpecV2(t *testing.T) {
 	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
 		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
 	}
+
+	// Verify log output
+	logOutput := logBuf.String()
+	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
+	assert.False(t, strings.Contains(logOutput, "detector=springboot found=true"), "Unexpected SpringBoot detector log line")
 }

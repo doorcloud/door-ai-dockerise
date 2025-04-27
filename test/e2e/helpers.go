@@ -112,9 +112,8 @@ func setupTestEnvironment(t *testing.T) (*pipeline.Pipeline, string) {
 	}
 
 	// Create parallel detector with logging
-	parallelDetector := detectors.NewParallelDetector(detectorList, &detectors.DetectorOptions{
-		LogSink: logSink,
-	})
+	parallelDetector := detectors.NewParallelDetector(detectorList)
+	parallelDetector.SetLogSink(logSink)
 
 	// Create pipeline with detectors
 	p := pipeline.New(pipeline.Options{
@@ -123,6 +122,7 @@ func setupTestEnvironment(t *testing.T) (*pipeline.Pipeline, string) {
 		Generator:     nil,
 		Verifier:      nil,
 		MaxAttempts:   3,
+		LogSink:       logSink,
 	})
 
 	return p, testDir

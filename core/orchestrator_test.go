@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"testing"
 
@@ -10,16 +12,24 @@ import (
 )
 
 type mockDetector struct {
-	stack StackInfo
-	err   error
+	stack   StackInfo
+	err     error
+	logSink io.Writer
 }
 
 func (d *mockDetector) Detect(ctx context.Context, fsys fs.FS) (StackInfo, bool, error) {
+	if d.logSink != nil && d.stack.Name != "" {
+		io.WriteString(d.logSink, fmt.Sprintf("detector=%s found=true path=%s\n", d.Name(), d.stack.DetectedFiles[0]))
+	}
 	return d.stack, d.stack.Name != "", d.err
 }
 
 func (d *mockDetector) Name() string {
 	return "mock"
+}
+
+func (d *mockDetector) SetLogSink(w io.Writer) {
+	d.logSink = w
 }
 
 type mockVerifier struct {

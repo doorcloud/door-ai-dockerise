@@ -32,7 +32,7 @@ type Options struct {
 
 // New creates a new Pipeline instance
 func New(opts Options) *Pipeline {
-	return &Pipeline{
+	p := &Pipeline{
 		detectors:     opts.Detectors,
 		factProviders: opts.FactProviders,
 		generator:     opts.Generator,
@@ -40,6 +40,15 @@ func New(opts Options) *Pipeline {
 		maxAttempts:   opts.MaxAttempts,
 		logSink:       opts.LogSink,
 	}
+
+	// Inject log sink into detectors
+	if p.logSink != nil {
+		for _, d := range p.detectors {
+			d.SetLogSink(p.logSink)
+		}
+	}
+
+	return p
 }
 
 // Process executes the pipeline
@@ -75,10 +84,11 @@ func (p *Pipeline) Process(ctx context.Context, dir string) (string, error) {
 }
 
 func (p *Pipeline) detectStack(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
-	// Create parallel detector with log sink
-	parallelDetector := detectors.NewParallelDetector(p.detectors, &detectors.DetectorOptions{
-		LogSink: p.logSink,
-	})
+	// Create parallel detector
+	parallelDetector := detectors.NewParallelDetector(p.detectors)
+	if p.logSink != nil {
+		parallelDetector.SetLogSink(p.logSink)
+	}
 
 	info, found, err := parallelDetector.Detect(ctx, fsys)
 	if err != nil {

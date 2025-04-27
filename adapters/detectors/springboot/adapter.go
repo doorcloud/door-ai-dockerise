@@ -2,6 +2,8 @@ package springboot
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/rules/springboot"
@@ -9,7 +11,8 @@ import (
 )
 
 type SpringBootDetector struct {
-	d springboot.SpringBootDetector
+	d       springboot.SpringBootDetector
+	logSink io.Writer
 }
 
 func NewSpringBootDetector() *SpringBootDetector {
@@ -18,11 +21,17 @@ func NewSpringBootDetector() *SpringBootDetector {
 
 func (s *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
 	if s.d.Detect(fsys) {
-		return core.StackInfo{
+		info := core.StackInfo{
 			Name:          "springboot",
 			BuildTool:     "maven",
 			DetectedFiles: []string{"pom.xml"},
-		}, true, nil
+		}
+
+		if s.logSink != nil {
+			io.WriteString(s.logSink, fmt.Sprintf("detector=%s found=true path=%s\n", s.Name(), info.DetectedFiles[0]))
+		}
+
+		return info, true, nil
 	}
 	return core.StackInfo{}, false, nil
 }
@@ -30,4 +39,9 @@ func (s *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS) (core.Stack
 // Name returns the detector name
 func (s *SpringBootDetector) Name() string {
 	return "springboot"
+}
+
+// SetLogSink sets the log sink for the detector
+func (s *SpringBootDetector) SetLogSink(w io.Writer) {
+	s.logSink = w
 }

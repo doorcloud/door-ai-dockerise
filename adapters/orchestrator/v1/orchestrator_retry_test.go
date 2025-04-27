@@ -25,18 +25,30 @@ func (m *mockBuilder) Build(ctx context.Context, in core.BuildInput, log core.Lo
 	return core.ImageRef{Name: "test:latest"}, nil
 }
 
-type mockDetector struct{}
+type mockDetector struct {
+	logSink io.Writer
+}
 
 func (m *mockDetector) Detect(ctx context.Context, root fs.FS) (core.StackInfo, bool, error) {
-	return core.StackInfo{
+	info := core.StackInfo{
 		Name:      "test",
 		BuildTool: "test",
 		Version:   "1.0",
-	}, true, nil
+	}
+
+	if m.logSink != nil {
+		io.WriteString(m.logSink, fmt.Sprintf("detector=%s found=true path=%s\n", m.Name(), "test"))
+	}
+
+	return info, true, nil
 }
 
 func (d *mockDetector) Name() string {
 	return "mock"
+}
+
+func (d *mockDetector) SetLogSink(w io.Writer) {
+	d.logSink = w
 }
 
 type mockGenerator struct{}

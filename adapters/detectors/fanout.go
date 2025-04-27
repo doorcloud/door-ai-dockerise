@@ -16,13 +16,9 @@ type detectorResult struct {
 	err   error
 }
 
-type DetectorOptions struct {
-	LogSink io.Writer
-}
-
 type ParallelDetector struct {
 	detectors []core.Detector
-	opts      *DetectorOptions
+	logSink   io.Writer
 }
 
 func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
@@ -34,8 +30,8 @@ func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackIn
 		go func(detector core.Detector) {
 			defer wg.Done()
 			info, found, err := detector.Detect(ctx, fsys)
-			if p.opts != nil && p.opts.LogSink != nil && found {
-				fmt.Fprintf(p.opts.LogSink, "detector=%s found=%v path=%s\n",
+			if p.logSink != nil && found {
+				fmt.Fprintf(p.logSink, "detector=%s found=%v path=%s\n",
 					detector.Name(), found, info.DetectedFiles[0])
 			}
 			results <- detectorResult{info: info, found: found, err: err}
@@ -57,17 +53,22 @@ func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackIn
 }
 
 // NewParallelDetector creates a new ParallelDetector instance
-func NewParallelDetector(detectors []core.Detector, opts *DetectorOptions) *ParallelDetector {
-	if opts == nil {
-		opts = &DetectorOptions{}
-	}
+func NewParallelDetector(detectors []core.Detector) *ParallelDetector {
 	return &ParallelDetector{
 		detectors: detectors,
-		opts:      opts,
 	}
 }
 
 // Name returns the detector name
 func (p *ParallelDetector) Name() string {
 	return "parallel"
+}
+
+// SetLogSink sets the log sink for the detector
+func (p *ParallelDetector) SetLogSink(w io.Writer) {
+	p.logSink = w
+	// Propagate log sink to child detectors
+	for _, d := range p.detectors {
+		d.SetLogSink(w)
+	}
 }

@@ -2,6 +2,7 @@ package v2
 
 import (
 	"context"
+	"io"
 	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
@@ -15,6 +16,7 @@ type Options struct {
 	Generator     core.Generator
 	Verifier      docker.Driver
 	MaxRetries    int
+	LogSink       io.Writer
 }
 
 // Pipeline represents the v2 Dockerfile generation pipeline
@@ -26,6 +28,13 @@ type Pipeline struct {
 func New(opts Options) *Pipeline {
 	// Create detector chain
 	detector := core.DetectorChain(opts.Detectors)
+
+	// Inject log sink into detectors
+	if opts.LogSink != nil {
+		for _, d := range opts.Detectors {
+			d.SetLogSink(opts.LogSink)
+		}
+	}
 
 	// Create fact provider chain
 	factProvider := FactProviderChain(opts.FactProviders)
@@ -111,6 +120,13 @@ func WithMaxRetries(maxRetries int) func(*Options) {
 func WithDockerDriver(driver docker.Driver) func(*Options) {
 	return func(opts *Options) {
 		opts.Verifier = driver
+	}
+}
+
+// WithLogSink sets the log sink for the pipeline
+func WithLogSink(logSink io.Writer) func(*Options) {
+	return func(opts *Options) {
+		opts.LogSink = logSink
 	}
 }
 
