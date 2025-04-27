@@ -1,6 +1,29 @@
 # Dockerfile Generator
 
+[![Go Tests](https://github.com/doorcloud/door-ai-dockerise/actions/workflows/test.yml/badge.svg)](https://github.com/doorcloud/door-ai-dockerise/actions/workflows/test.yml)
+[![Go Vet](https://github.com/doorcloud/door-ai-dockerise/actions/workflows/vet.yml/badge.svg)](https://github.com/doorcloud/door-ai-dockerise/actions/workflows/vet.yml)
+[![Latest Release](https://img.shields.io/github/v/release/doorcloud/door-ai-dockerise)](https://github.com/doorcloud/door-ai-dockerise/releases/latest)
+
 A tool to automatically generate Dockerfiles for your projects using AI.
+
+## Quick Start
+
+Install the latest version:
+```bash
+go install github.com/doorcloud/door-ai-dockerise/cmd/dockergen@latest
+```
+
+Generate a Dockerfile for your project:
+```bash
+# Navigate to your project directory
+cd your-project
+
+# Generate a Dockerfile
+dockergen
+
+# See all available options
+dockergen -h
+```
 
 ## Installation
 
