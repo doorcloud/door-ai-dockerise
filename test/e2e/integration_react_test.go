@@ -8,23 +8,67 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
-	"github.com/doorcloud/door-ai-dockerise/adapters/rules/react"
 	"github.com/doorcloud/door-ai-dockerise/adapters/rules/springboot"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline"
+	llmmock "github.com/doorcloud/door-ai-dockerise/providers/llm/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReactProject(t *testing.T) {
 	if os.Getenv("DG_E2E") == "" {
-		t.Skip("Skipping integration test; set DG_E2E=1 to run")
+		t.Skip("Skipping E2E test. Set DG_E2E=1 to run.")
 	}
 
+	// Create a temporary directory for the test
+	tempDir := t.TempDir()
+
+	// Create a mock React project
+	packageJson := `{
+		"name": "test-react-app",
+		"version": "1.0.0",
+		"scripts": {
+			"start": "react-scripts start",
+			"build": "react-scripts build"
+		}
+	}`
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(packageJson), 0644))
+
+	// Run the generator
+	output, err := runGenerator(tempDir)
+	require.NoError(t, err)
+
+	// Verify the generated Dockerfile
+	expected := `FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/package*.json ./
+RUN npm install --production
+
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/ || exit 1
+
+CMD ["npm", "start"]`
+
+	require.Equal(t, expected, output)
+}
+
+func runGenerator(projectDir string) (string, error) {
 	// Create mock LLM
-	mockLLM := mock.NewMockLLM()
+	mockLLM := llmmock.NewMockClient()
 
 	// Create buffer for log output
 	var logBuf bytes.Buffer
@@ -47,27 +91,19 @@ func TestReactProject(t *testing.T) {
 	// Create test context
 	ctx := context.Background()
 
-	// Get absolute path to test project
-	projectPath, err := filepath.Abs("testdata/react-project")
-	if err != nil {
-		t.Fatalf("Failed to get absolute path: %v", err)
-	}
-
 	// Run the pipeline
-	if err := p.Run(ctx, projectPath); err != nil {
-		t.Errorf("Pipeline.Run() error = %v", err)
+	if err := p.Run(ctx, projectDir); err != nil {
+		return "", err
 	}
 
-	// Verify Dockerfile was created
-	dockerfilePath := filepath.Join(projectPath, "Dockerfile")
-	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
-		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
+	// Read the generated Dockerfile
+	dockerfilePath := filepath.Join(projectDir, "Dockerfile")
+	content, err := os.ReadFile(dockerfilePath)
+	if err != nil {
+		return "", err
 	}
 
-	// Verify log output
-	logOutput := logBuf.String()
-	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
-	assert.False(t, strings.Contains(logOutput, "detector=springboot found=true"), "Unexpected SpringBoot detector log line")
+	return string(content), nil
 }
 
 func TestReactIntegration(t *testing.T) {
