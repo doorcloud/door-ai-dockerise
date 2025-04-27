@@ -16,7 +16,6 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
 )
 
@@ -93,36 +92,33 @@ func createTempDir(t *testing.T) string {
 	return dir
 }
 
-func setupTestEnvironment(t *testing.T) (*pipeline.Pipeline, string) {
+type mockFactProvider struct{}
+
+func (m *mockFactProvider) Facts(ctx context.Context, stack core.StackInfo) ([]core.Fact, error) {
+	return []core.Fact{
+		{Key: "stack_type", Value: stack.Name},
+		{Key: "build_tool", Value: stack.BuildTool},
+	}, nil
+}
+
+func setupTestEnvironment(t *testing.T) (*v2.Pipeline, string) {
 	// Create test directory
 	testDir, err := os.MkdirTemp("", "dockerfile-test-*")
 	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		os.RemoveAll(testDir)
-	})
-
-	// Create logger
-	logSink := &testLogger{t: t}
-
-	// Create detectors with logging
-	detectorList := []core.Detector{
-		detectors.NewReact(),
+		t.Fatalf("Failed to create test directory: %v", err)
 	}
 
-	// Create parallel detector with logging
-	parallelDetector := detectors.NewParallelDetector(detectorList)
-	parallelDetector.SetLogSink(logSink)
+	// Create Docker driver
+	dockerDriver := docker.NewMockDriver()
 
 	// Create pipeline with detectors
-	p := pipeline.New(pipeline.Options{
-		Detectors:     []core.Detector{parallelDetector},
-		FactProviders: nil,
-		Generator:     nil,
-		Verifier:      nil,
-		MaxAttempts:   3,
-		LogSink:       logSink,
+	p := v2.New(v2.Options{
+		Detectors: detectors.DefaultDetectors(),
+		FactProviders: []core.FactProvider{
+			&mockFactProvider{},
+		},
+		Generator: &mock.MockGenerator{},
+		Verifier:  dockerDriver,
 	})
 
 	return p, testDir
