@@ -2,6 +2,7 @@ package verifiers
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -17,13 +18,14 @@ import (
 
 type Options struct {
 	Socket  string
-	LogSink io.Writer // can be nil
+	LogSink io.Writer
 	Timeout time.Duration
 }
 
 type Docker struct {
-	client *client.Client
-	opts   Options
+	client  *client.Client
+	opts    Options
+	logSink io.Writer
 }
 
 func NewDocker(opts Options) (*Docker, error) {
@@ -32,22 +34,42 @@ func NewDocker(opts Options) (*Docker, error) {
 		return nil, fmt.Errorf("failed to create docker client: %w", err)
 	}
 	return &Docker{
-		client: cli,
-		opts:   opts,
+		client:  cli,
+		opts:    opts,
+		logSink: opts.LogSink,
 	}, nil
 }
 
 func (d *Docker) stream(line []byte) {
-	if d.opts.LogSink != nil {
-		d.opts.LogSink.Write(line)
+	if d.logSink != nil {
+		d.logSink.Write(line)
 	}
 }
 
 func (d *Docker) Verify(ctx context.Context, repoPath string, dockerfile string) error {
 	// Build the Docker image with a tag
 	buildCmd := exec.CommandContext(ctx, "docker", "build", "-t", "test-app:latest", "-f", filepath.Join(repoPath, dockerfile), repoPath)
-	buildCmd.Stdout = os.Stdout
-	buildCmd.Stderr = os.Stderr
+
+	// Stream build output
+	if d.logSink != nil {
+		buildPipe, err := buildCmd.StdoutPipe()
+		if err != nil {
+			return fmt.Errorf("failed to create build pipe: %w", err)
+		}
+		buildErrPipe, err := buildCmd.StderrPipe()
+		if err != nil {
+			return fmt.Errorf("failed to create build error pipe: %w", err)
+		}
+		go func() {
+			scanner := bufio.NewScanner(io.MultiReader(buildPipe, buildErrPipe))
+			for scanner.Scan() {
+				fmt.Fprintf(d.logSink, "docker build │ %s\n", scanner.Text())
+			}
+		}()
+	} else {
+		buildCmd.Stdout = os.Stdout
+		buildCmd.Stderr = os.Stderr
+	}
 
 	if err := buildCmd.Run(); err != nil {
 		return fmt.Errorf("docker build failed: %w", err)
@@ -55,8 +77,27 @@ func (d *Docker) Verify(ctx context.Context, repoPath string, dockerfile string)
 
 	// Run the container in detached mode
 	runCmd := exec.CommandContext(ctx, "docker", "run", "-d", "--rm", "-p", "3000:3000", "test-app:latest")
-	runCmd.Stdout = os.Stdout
-	runCmd.Stderr = os.Stderr
+
+	// Stream run output
+	if d.logSink != nil {
+		runPipe, err := runCmd.StdoutPipe()
+		if err != nil {
+			return fmt.Errorf("failed to create run pipe: %w", err)
+		}
+		runErrPipe, err := runCmd.StderrPipe()
+		if err != nil {
+			return fmt.Errorf("failed to create run error pipe: %w", err)
+		}
+		go func() {
+			scanner := bufio.NewScanner(io.MultiReader(runPipe, runErrPipe))
+			for scanner.Scan() {
+				fmt.Fprintf(d.logSink, "docker run   │ %s\n", scanner.Text())
+			}
+		}()
+	} else {
+		runCmd.Stdout = os.Stdout
+		runCmd.Stderr = os.Stderr
+	}
 
 	if err := runCmd.Run(); err != nil {
 		return fmt.Errorf("docker run failed: %w", err)

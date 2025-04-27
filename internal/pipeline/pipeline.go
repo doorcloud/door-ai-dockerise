@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"os"
 	"sync"
@@ -16,6 +17,7 @@ type Pipeline struct {
 	generator     core.Generator
 	verifier      core.Verifier
 	maxAttempts   int
+	logSink       io.Writer
 }
 
 type Options struct {
@@ -24,6 +26,7 @@ type Options struct {
 	Generator     core.Generator
 	Verifier      core.Verifier
 	MaxAttempts   int
+	LogSink       io.Writer
 }
 
 // New creates a new Pipeline instance
@@ -34,6 +37,7 @@ func New(opts Options) *Pipeline {
 		generator:     opts.Generator,
 		verifier:      opts.Verifier,
 		maxAttempts:   opts.MaxAttempts,
+		logSink:       opts.LogSink,
 	}
 }
 

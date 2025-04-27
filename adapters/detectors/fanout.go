@@ -34,8 +34,8 @@ func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackIn
 			defer wg.Done()
 			info, err := detector.Detect(ctx, fsys)
 			if p.opts.LogSink != nil {
-				fmt.Fprintf(p.opts.LogSink, "detector=%T found=%v\n",
-					detector, info.Name != "")
+				fmt.Fprintf(p.opts.LogSink, "detector=%T found=%v files=%v\n",
+					detector, info.Name != "", info.DetectedFiles)
 			}
 			results <- detectorResult{info: info, err: err}
 		}(d)
