@@ -13,7 +13,7 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/adapters/rules/springboot"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
-	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	dockermock "github.com/doorcloud/door-ai-dockerise/drivers/docker/mock"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline"
 	llmmock "github.com/doorcloud/door-ai-dockerise/providers/llm/mock"
 	"github.com/stretchr/testify/assert"
@@ -83,7 +83,7 @@ func runGenerator(projectDir string) (string, error) {
 			facts.NewStatic(),
 		),
 		v2.WithGenerator(generate.NewLLM(mockLLM)),
-		v2.WithDockerDriver(docker.NewMockDriver()),
+		v2.WithDockerDriver(dockermock.NewMockDriver()),
 		v2.WithMaxRetries(3),
 		v2.WithLogSink(&logBuf),
 	)
@@ -127,7 +127,7 @@ func TestReactIntegration(t *testing.T) {
 			facts.NewStatic(),
 		),
 		v2.WithGenerator(generate.NewLLM(mockLLM)),
-		v2.WithDockerDriver(docker.NewMockDriver()),
+		v2.WithDockerDriver(dockermock.NewMockDriver()),
 		v2.WithMaxRetries(3),
 		v2.WithLogSink(&logBuf),
 	)
@@ -242,7 +242,7 @@ func TestIntegration_React(t *testing.T) {
 			facts.NewStatic(),
 		),
 		v2.WithGenerator(generate.NewLLM(mockLLM)),
-		v2.WithDockerDriver(docker.NewMockDriver()),
+		v2.WithDockerDriver(dockermock.NewMockDriver()),
 		v2.WithMaxRetries(3),
 		v2.WithLogSink(&logBuf),
 	)
@@ -285,7 +285,7 @@ func TestReactSpecV2(t *testing.T) {
 			facts.NewStatic(),
 		),
 		v2.WithGenerator(generate.NewLLM(mockLLM)),
-		v2.WithDockerDriver(docker.NewMockDriver()),
+		v2.WithDockerDriver(dockermock.NewMockDriver()),
 		v2.WithMaxRetries(3),
 		v2.WithLogSink(&logBuf),
 	)

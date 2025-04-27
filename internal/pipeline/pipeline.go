@@ -4,15 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts/spring"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
+	dockerverifier "github.com/doorcloud/door-ai-dockerise/adapters/verifiers/docker"
 	"github.com/doorcloud/door-ai-dockerise/core"
-	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	dockerdriver "github.com/doorcloud/door-ai-dockerise/drivers/docker"
 	"github.com/doorcloud/door-ai-dockerise/internal/config"
 	"github.com/doorcloud/door-ai-dockerise/providers/llm/ollama"
 )
@@ -42,7 +46,7 @@ func WithGenerator(generator generate.Generator) Option {
 }
 
 // WithDockerDriver sets the docker driver for the pipeline
-func WithDockerDriver(driver docker.Driver) Option {
+func WithDockerDriver(driver dockerdriver.Driver) Option {
 	return func(p *Pipeline) {
 		p.dockerDriver = driver
 	}
@@ -55,7 +59,7 @@ type Pipeline struct {
 	detectors     []detectors.Detector
 	factProviders []facts.Provider
 	generator     generate.Generator
-	dockerDriver  docker.Driver
+	dockerDriver  dockerdriver.Driver
 	cfg           *config.Config
 }
 
@@ -71,7 +75,7 @@ func New(cfg *config.Config, opts ...Option) *Pipeline {
 	return p
 }
 
-func (p *Pipeline) Run(ctx context.Context, projectDir string) error {
+func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) error {
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(ctx, p.cfg.DockerTimeout)
 	defer cancel()
@@ -167,9 +171,39 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string) error {
 		return err
 	}
 
-	// Verify Dockerfile
-	if err := p.dockerDriver.Verify(ctx, dockerfile); err != nil {
-		return err
+	// Build image
+	opts := dockerdriver.BuildOptions{
+		Context:    projectDir,
+		Dockerfile: "Dockerfile",
+		Tags:       []string{"myapp:latest"},
+	}
+	if err := p.dockerDriver.Build(ctx, "Dockerfile", opts); err != nil {
+		return fmt.Errorf("failed to build image: %w", err)
+	}
+
+	// Verify container health
+	if stackInfo.Name == "spring-boot" {
+		spec, err := spring.NewExtractor().Extract(projectDir)
+		if err != nil {
+			return fmt.Errorf("failed to extract Spring Boot facts: %w", err)
+		}
+
+		// Create a buffer to capture build and health check logs
+		var logs strings.Builder
+		fmt.Fprintf(&logs, "docker run │ %s\n", dockerfile)
+
+		// Create health verifier
+		verifier := dockerverifier.NewRunner(p.dockerDriver)
+
+		// Run health check with timeout
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+
+		if err := verifier.Run(ctx, "myapp:latest", spec, &logs); err != nil {
+			// Include logs in the retry prompt
+			retryPrompt := fmt.Sprintf("Previous attempt failed:\n%s\n\nPlease fix the Dockerfile and try again.", logs.String())
+			return fmt.Errorf("health check failed: %w\n%s", err, retryPrompt)
+		}
 	}
 
 	return nil

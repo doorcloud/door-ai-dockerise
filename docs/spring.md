@@ -41,4 +41,63 @@ The Spring Boot fact extractor (`Extractor`) gathers the following configuration
 - JDK Version: Extracted from `sourceCompatibility` property
 - Spring Boot Version: Extracted from `springBootVersion` property
 - Build Command: "./gradlew build -x test"
-- Artifact: "build/libs/*.jar" 
+- Artifact: "build/libs/*.jar"
+
+## Health Check Behavior
+
+After building the Docker image, the system performs a health check to verify that the application is running correctly:
+
+1. The container is started with a random port mapped to the application port
+2. Container logs are streamed to the output
+3. The health endpoint is polled until:
+   - A 200 OK response is received (success)
+   - The timeout (30 seconds) is reached (failure)
+4. The container is stopped and removed after the check
+
+### Log Output
+The health check process produces the following log messages:
+```
+docker run │ <container id>
+health │ OK in <seconds> s
+```
+
+If the health check fails, the logs are included in the retry prompt to help diagnose the issue. 
+
+# Spring Boot Support
+
+## Overview
+This document describes the Spring Boot support in the Dockerfile generator.
+
+## Health Check Behavior
+The generator performs the following health check steps:
+
+1. Starts a container with the generated Dockerfile
+2. Streams container logs
+3. Polls the health endpoint (default: `/actuator/health`) until:
+   - The endpoint returns HTTP 200 OK
+   - A timeout occurs (default: 30 seconds)
+
+The health check output is streamed in the following format:
+```
+docker run   │ <container-id>
+health       │ OK in <seconds> s
+```
+
+If the health check fails, the generator will:
+1. Stop and remove the container
+2. Return an error with the container logs
+3. Suggest fixes for the Dockerfile
+
+## Configuration
+The health check behavior can be configured through the following environment variables:
+- `SPRING_HEALTH_ENDPOINT`: Custom health endpoint path (default: `/actuator/health`)
+- `SPRING_HEALTH_TIMEOUT`: Health check timeout in seconds (default: 30)
+
+## Example
+```bash
+# Run with custom health endpoint
+SPRING_HEALTH_ENDPOINT=/health ./dockerfile-gen spring-boot-app
+
+# Run with custom timeout
+SPRING_HEALTH_TIMEOUT=60 ./dockerfile-gen spring-boot-app
+``` 

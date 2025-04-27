@@ -15,7 +15,7 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/adapters/verifiers"
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
-	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	dockermock "github.com/doorcloud/door-ai-dockerise/drivers/docker/mock"
 	"github.com/doorcloud/door-ai-dockerise/pipeline"
 )
 
@@ -34,7 +34,7 @@ func RunPipeline(t *testing.T, sourceDir string) error {
 			facts.NewStatic(),
 		},
 		Generator:  generate.NewLLM(mockLLM),
-		Verifier:   docker.NewMockDriver(),
+		Verifier:   dockermock.NewMockDriver(),
 		MaxRetries: 3,
 	})
 
@@ -109,7 +109,7 @@ func setupTestEnvironment(t *testing.T) (*pipeline.Pipeline, string) {
 	}
 
 	// Create Docker driver
-	dockerDriver := docker.NewMockDriver()
+	dockerDriver := dockermock.NewMockDriver()
 
 	// Create pipeline with detectors
 	p := pipeline.New(pipeline.Options{

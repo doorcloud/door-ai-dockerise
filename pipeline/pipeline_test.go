@@ -10,7 +10,7 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
-	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	dockermock "github.com/doorcloud/door-ai-dockerise/drivers/docker/mock"
 )
 
 func TestPipeline_Run(t *testing.T) {
@@ -27,7 +27,7 @@ func TestPipeline_Run(t *testing.T) {
 			facts.NewStatic(),
 		),
 		WithGenerator(generate.NewLLM(mockLLM)),
-		WithDockerDriver(docker.NewMockDriver()),
+		WithDockerDriver(dockermock.NewMockDriver()),
 		WithMaxRetries(3),
 	)
 
@@ -72,7 +72,7 @@ func TestPipeline_Run_ErrorCases(t *testing.T) {
 			facts.NewStatic(),
 		),
 		WithGenerator(generate.NewLLM(mockLLM)),
-		WithDockerDriver(docker.NewMockDriver()),
+		WithDockerDriver(dockermock.NewMockDriver()),
 		WithMaxRetries(3),
 	)
 

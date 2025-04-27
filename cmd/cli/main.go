@@ -2,47 +2,48 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	"github.com/doorcloud/door-ai-dockerise/pipeline"
+	"github.com/doorcloud/door-ai-dockerise/internal/config"
+	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
 )
 
 func main() {
-	// Create context
-	ctx := context.Background()
+	// Parse command line flags
+	projectDir := flag.String("dir", ".", "Project directory to analyze")
+	flag.Parse()
+
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
 	// Create mock LLM for testing
 	mockLLM := mock.NewMockLLM()
 
-	// Create pipeline with all components
-	p := pipeline.NewPipeline(
+	// Create pipeline
+	p := pipeline.New(cfg,
 		pipeline.WithDetectors(
-			react.NewReactDetector(),
-			springboot.NewSpringBootDetector(),
+			detectors.NewReactDetector(),
+			detectors.NewSpringBootDetector(),
 		),
 		pipeline.WithFactProviders(
 			facts.NewStatic(),
 		),
 		pipeline.WithGenerator(generate.NewLLM(mockLLM)),
-		pipeline.WithDockerDriver(docker.NewDriver()),
-		pipeline.WithMaxRetries(3),
+		pipeline.WithDockerDriver(docker.New()),
 	)
 
-	// Get source path from command line arguments
-	if len(os.Args) < 2 {
-		log.Fatal("Please provide a source path")
-	}
-	sourcePath := os.Args[1]
-
-	// Run the pipeline
-	if err := p.Run(ctx, sourcePath); err != nil {
-		log.Fatal(err)
+	// Run pipeline
+	if err := p.Run(context.Background(), *projectDir, os.Stdout); err != nil {
+		log.Fatalf("Pipeline failed: %v", err)
 	}
 }

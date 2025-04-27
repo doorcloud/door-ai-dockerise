@@ -8,14 +8,16 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
-// LLMGenerator implements the Generator interface using an LLM
+// LLMGenerator generates Dockerfiles using LLM
 type LLMGenerator struct {
 	llm core.ChatCompletion
 }
 
-// NewLLM creates a new LLM-based generator
+// NewLLM creates a new LLM generator
 func NewLLM(llm core.ChatCompletion) *LLMGenerator {
-	return &LLMGenerator{llm: llm}
+	return &LLMGenerator{
+		llm: llm,
+	}
 }
 
 // GatherFacts implements the ChatCompletion interface
@@ -23,27 +25,9 @@ func (g *LLMGenerator) GatherFacts(ctx context.Context, fsys fs.FS, stack core.S
 	return g.llm.GatherFacts(ctx, fsys, stack)
 }
 
-// Generate implements the Generator interface
+// Generate creates a Dockerfile using the provided facts
 func (g *LLMGenerator) Generate(ctx context.Context, facts core.Facts) (string, error) {
-	// Convert facts to messages
-	messages := []core.Message{
-		{
-			Role:    "system",
-			Content: "Generate a Dockerfile for the given stack.",
-		},
-		{
-			Role:    "user",
-			Content: fmt.Sprintf("Stack type: %s\nBuild tool: %s", facts.StackType, facts.BuildTool),
-		},
-	}
-
-	// Get completion from LLM
-	response, err := g.llm.Complete(ctx, messages)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate Dockerfile: %w", err)
-	}
-
-	return response, nil
+	return g.llm.GenerateDockerfile(ctx, facts)
 }
 
 // GenerateDockerfile implements the ChatCompletion interface

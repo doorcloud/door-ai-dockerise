@@ -132,11 +132,24 @@ func (e *Extractor) extractMavenFacts(content string, spec *Spec) error {
 // extractGradleFacts extracts facts from Gradle build file
 func (e *Extractor) extractGradleFacts(content string, spec *Spec) error {
 	// Extract Spring Boot version
-	if idx := strings.Index(content, "springBootVersion = '"); idx != -1 {
-		start := idx + len("springBootVersion = '")
-		end := strings.Index(content[start:], "'")
-		if end != -1 {
-			spec.SpringBootVersion = content[start : start+end]
+	// Try different patterns for Spring Boot version
+	patterns := []string{
+		"springBootVersion = '",
+		"id 'org.springframework.boot' version '",
+		"id(\"org.springframework.boot\") version \"",
+	}
+
+	for _, pattern := range patterns {
+		if idx := strings.Index(content, pattern); idx != -1 {
+			start := idx + len(pattern)
+			end := strings.Index(content[start:], "'")
+			if end == -1 {
+				end = strings.Index(content[start:], "\"")
+			}
+			if end != -1 {
+				spec.SpringBootVersion = content[start : start+end]
+				break
+			}
 		}
 	}
 

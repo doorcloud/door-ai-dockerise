@@ -12,7 +12,7 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
-	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	dockermock "github.com/doorcloud/door-ai-dockerise/drivers/docker/mock"
 	"github.com/doorcloud/door-ai-dockerise/pipeline"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,7 +33,7 @@ func TestIntegration_Spring(t *testing.T) {
 			facts.NewStatic(),
 		),
 		pipeline.WithGenerator(generate.NewLLM(mockLLM)),
-		pipeline.WithDockerDriver(docker.NewMockDriver()),
+		pipeline.WithDockerDriver(dockermock.NewMockDriver()),
 		pipeline.WithMaxRetries(3),
 		pipeline.WithLogSink(&logBuf),
 	)

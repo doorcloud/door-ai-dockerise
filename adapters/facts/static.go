@@ -7,10 +7,21 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
+// Static provides static facts about a project
 type Static struct{}
 
+// NewStatic creates a new static fact provider
 func NewStatic() *Static {
 	return &Static{}
+}
+
+// Gather implements the Provider interface
+func (s *Static) Gather(projectDir string) (map[string]interface{}, error) {
+	// Return some static facts
+	return map[string]interface{}{
+		"environment": "production",
+		"platform":    "linux/amd64",
+	}, nil
 }
 
 func (s *Static) Facts(ctx context.Context, stack core.StackInfo) ([]core.Fact, error) {
