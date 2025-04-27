@@ -4,14 +4,14 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 )
 
@@ -43,46 +43,41 @@ func (d *Docker) stream(line []byte) {
 	}
 }
 
-func (d *Docker) Verify(ctx context.Context, path string, dockerfile string) error {
-	ctx, cancel := context.WithTimeout(ctx, d.opts.Timeout)
-	defer cancel()
+func (d *Docker) Verify(ctx context.Context, repoPath string, dockerfile string) error {
+	// Build the Docker image with a tag
+	buildCmd := exec.CommandContext(ctx, "docker", "build", "-t", "test-app:latest", "-f", filepath.Join(repoPath, dockerfile), repoPath)
+	buildCmd.Stdout = os.Stdout
+	buildCmd.Stderr = os.Stderr
 
-	buildCtx, err := createBuildContext(path, dockerfile)
+	if err := buildCmd.Run(); err != nil {
+		return fmt.Errorf("docker build failed: %w", err)
+	}
+
+	// Run the container in detached mode
+	runCmd := exec.CommandContext(ctx, "docker", "run", "-d", "--rm", "-p", "3000:3000", "test-app:latest")
+	runCmd.Stdout = os.Stdout
+	runCmd.Stderr = os.Stderr
+
+	if err := runCmd.Run(); err != nil {
+		return fmt.Errorf("docker run failed: %w", err)
+	}
+
+	// Give the server some time to start
+	time.Sleep(5 * time.Second)
+
+	// Clean up the container
+	cleanupCmd := exec.CommandContext(ctx, "docker", "ps", "-q", "--filter", "ancestor=test-app:latest")
+	output, err := cleanupCmd.Output()
 	if err != nil {
-		return err
-	}
-	defer buildCtx.Close()
-
-	opts := types.ImageBuildOptions{
-		Dockerfile:  "Dockerfile",
-		Tags:        []string{"test-image"},
-		Remove:      true,
-		ForceRemove: true,
+		return fmt.Errorf("failed to get container ID: %w", err)
 	}
 
-	resp, err := d.client.ImageBuild(ctx, buildCtx, opts)
-	if err != nil {
-		return fmt.Errorf("failed to build image: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Stream build output
-	decoder := json.NewDecoder(resp.Body)
-	for {
-		var msg struct {
-			Stream string `json:"stream"`
-			Error  string `json:"error"`
+	containerID := strings.TrimSpace(string(output))
+	if containerID != "" {
+		stopCmd := exec.CommandContext(ctx, "docker", "stop", containerID)
+		if err := stopCmd.Run(); err != nil {
+			return fmt.Errorf("failed to stop container: %w", err)
 		}
-		if err := decoder.Decode(&msg); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fmt.Errorf("failed to decode build output: %w", err)
-		}
-		if msg.Error != "" {
-			return fmt.Errorf("build error: %s", msg.Error)
-		}
-		d.stream([]byte(msg.Stream))
 	}
 
 	return nil

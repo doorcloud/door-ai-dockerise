@@ -142,19 +142,25 @@ func (p *Pipeline) verifyDockerfile(ctx context.Context, path string, dockerfile
 		return nil
 	}
 
-	var wg sync.WaitGroup
 	errCh := make(chan error, 1)
-
+	var wg sync.WaitGroup
 	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
-		errCh <- p.verifier.Verify(ctx, path, dockerfile)
+		if err := p.verifier.Verify(ctx, path, dockerfile); err != nil {
+			errCh <- err
+			return
+		}
 	}()
+
+	wg.Wait()
+	close(errCh)
 
 	select {
 	case err := <-errCh:
 		return err
-	case <-ctx.Done():
-		return ctx.Err()
+	default:
+		return nil
 	}
 }

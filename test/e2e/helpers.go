@@ -16,6 +16,7 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
 )
 
@@ -90,4 +91,39 @@ func createTempDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return dir
+}
+
+func setupTestEnvironment(t *testing.T) (*pipeline.Pipeline, string) {
+	// Create test directory
+	testDir, err := os.MkdirTemp("", "dockerfile-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(testDir)
+	})
+
+	// Create logger
+	logSink := &testLogger{t: t}
+
+	// Create detectors with logging
+	detectorList := []core.Detector{
+		detectors.NewReact(),
+	}
+
+	// Create parallel detector with logging
+	parallelDetector := detectors.NewParallelDetector(detectorList, &detectors.DetectorOptions{
+		LogSink: logSink,
+	})
+
+	// Create pipeline with detectors
+	p := pipeline.New(pipeline.Options{
+		Detectors:     []core.Detector{parallelDetector},
+		FactProviders: nil,
+		Generator:     nil,
+		Verifier:      nil,
+		MaxAttempts:   3,
+	})
+
+	return p, testDir
 }
