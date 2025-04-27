@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/doorcloud/door-ai-dockerise/core/errs"
 )
 
 // dockerDriver implements the Driver interface
@@ -36,7 +38,7 @@ func (d *dockerDriver) Build(ctx context.Context, dockerfilePath string, opts Bu
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("docker build failed: %v\nOutput: %s", err, output)
+		return errs.Wrap("docker build", fmt.Errorf("%v\nOutput: %s", err, output))
 	}
 
 	return nil
@@ -47,7 +49,7 @@ func (d *dockerDriver) Push(ctx context.Context, image string) error {
 	cmd := exec.CommandContext(ctx, "docker", "push", image)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("docker push failed: %v\nOutput: %s", err, output)
+		return errs.Wrap("docker push", fmt.Errorf("%v\nOutput: %s", err, output))
 	}
 	return nil
 }
@@ -76,7 +78,7 @@ func (d *dockerDriver) Run(ctx context.Context, imageID string, port int) error 
 	cmd := exec.CommandContext(ctx, "docker", "run", "-d", "-p", fmt.Sprintf("%d:%d", port, port), imageID)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("docker run failed: %v\n%s", err, output)
+		return errs.Wrap("docker run", fmt.Errorf("%v\n%s", err, output))
 	}
 
 	return nil

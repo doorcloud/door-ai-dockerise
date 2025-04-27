@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/core/errs"
 	"github.com/doorcloud/door-ai-dockerise/drivers"
 )
 
@@ -97,8 +98,7 @@ func (o *Orchestrator) Run(
 		// Code-first mode: detect stack if not cached
 		stack, err = o.detectStack(ctx, root, log)
 		if err != nil {
-			log.Error(fmt.Sprintf("Detection failed: %v", err))
-			return "", fmt.Errorf("detection failed: %w", err)
+			return "", errs.Wrap("detect stack", err)
 		}
 		o.cachedStack = stack
 	} else {
@@ -112,8 +112,7 @@ func (o *Orchestrator) Run(
 	if o.cachedFacts.StackType == "" {
 		facts, err = o.gatherFacts(ctx, root, stack, log)
 		if err != nil {
-			log.Error(fmt.Sprintf("Fact gathering failed: %v", err))
-			return "", fmt.Errorf("fact gathering failed: %w", err)
+			return "", errs.Wrap("gather facts", err)
 		}
 		o.cachedFacts = facts
 	} else {
@@ -124,8 +123,7 @@ func (o *Orchestrator) Run(
 	// 3. Generate initial Dockerfile
 	dockerfile, err := o.generator.Generate(ctx, facts)
 	if err != nil {
-		log.Error(fmt.Sprintf("Generation failed: %v", err))
-		return "", fmt.Errorf("generation failed: %w", err)
+		return "", errs.Wrap("generate Dockerfile", err)
 	}
 	log.Info("Generated Dockerfile")
 
@@ -168,10 +166,8 @@ func (o *Orchestrator) Run(
 	}
 
 	if lastErr != nil {
-		log.Error(fmt.Sprintf("Build failed after %d attempts: %v", o.attempts, lastErr))
-		return "", fmt.Errorf("build failed after %d attempts: %w", o.attempts, lastErr)
+		return "", errs.Wrap(fmt.Sprintf("build after %d attempts", o.attempts), lastErr)
 	}
-	log.Error(fmt.Sprintf("Build failed after %d attempts", o.attempts))
 	return "", fmt.Errorf("build failed after %d attempts", o.attempts)
 }
 
@@ -185,7 +181,7 @@ func (o *Orchestrator) detectStack(ctx context.Context, root string, logs io.Wri
 
 	for _, detector := range o.detectors {
 		go func(d core.Detector) {
-			stack, found, err := d.Detect(ctx, fsys)
+			stack, found, err := d.Detect(ctx, fsys, nil)
 			if err != nil {
 				errors <- err
 				return

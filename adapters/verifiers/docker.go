@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/client"
+	"github.com/doorcloud/door-ai-dockerise/core/errs"
 )
 
 type Options struct {
@@ -26,17 +27,19 @@ type Docker struct {
 	client  *client.Client
 	opts    Options
 	logSink io.Writer
+	timeout time.Duration
 }
 
 func NewDocker(opts Options) (*Docker, error) {
-	cli, err := client.NewClientWithOpts(client.WithHost(opts.Socket))
+	client, err := client.NewClientWithOpts(client.WithHost(opts.Socket))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create docker client: %w", err)
+		return nil, errs.Wrap("create docker client", err)
 	}
 	return &Docker{
-		client:  cli,
+		client:  client,
 		opts:    opts,
 		logSink: opts.LogSink,
+		timeout: opts.Timeout,
 	}, nil
 }
 
@@ -54,11 +57,11 @@ func (d *Docker) Verify(ctx context.Context, repoPath string, dockerfile string)
 	if d.logSink != nil {
 		buildPipe, err := buildCmd.StdoutPipe()
 		if err != nil {
-			return fmt.Errorf("failed to create build pipe: %w", err)
+			return errs.Wrap("create build pipe", err)
 		}
 		buildErrPipe, err := buildCmd.StderrPipe()
 		if err != nil {
-			return fmt.Errorf("failed to create build error pipe: %w", err)
+			return errs.Wrap("create build error pipe", err)
 		}
 		go func() {
 			scanner := bufio.NewScanner(io.MultiReader(buildPipe, buildErrPipe))
@@ -72,7 +75,7 @@ func (d *Docker) Verify(ctx context.Context, repoPath string, dockerfile string)
 	}
 
 	if err := buildCmd.Run(); err != nil {
-		return fmt.Errorf("docker build failed: %w", err)
+		return errs.Wrap("docker build", err)
 	}
 
 	// Run the container in detached mode
@@ -82,11 +85,11 @@ func (d *Docker) Verify(ctx context.Context, repoPath string, dockerfile string)
 	if d.logSink != nil {
 		runPipe, err := runCmd.StdoutPipe()
 		if err != nil {
-			return fmt.Errorf("failed to create run pipe: %w", err)
+			return errs.Wrap("create run pipe", err)
 		}
 		runErrPipe, err := runCmd.StderrPipe()
 		if err != nil {
-			return fmt.Errorf("failed to create run error pipe: %w", err)
+			return errs.Wrap("create run error pipe", err)
 		}
 		go func() {
 			scanner := bufio.NewScanner(io.MultiReader(runPipe, runErrPipe))
@@ -100,7 +103,7 @@ func (d *Docker) Verify(ctx context.Context, repoPath string, dockerfile string)
 	}
 
 	if err := runCmd.Run(); err != nil {
-		return fmt.Errorf("docker run failed: %w", err)
+		return errs.Wrap("docker run", err)
 	}
 
 	// Give the server some time to start
