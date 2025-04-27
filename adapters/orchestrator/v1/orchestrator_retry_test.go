@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/core/logs"
 )
 
 type mockBuilder struct {
@@ -26,18 +27,18 @@ func (m *mockBuilder) Build(ctx context.Context, in core.BuildInput, log core.Lo
 }
 
 type mockDetector struct {
-	logSink io.Writer
+	logSink core.LogSink
 }
 
-func (m *mockDetector) Detect(ctx context.Context, root fs.FS) (core.StackInfo, bool, error) {
+func (m *mockDetector) Detect(ctx context.Context, root fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
 	info := core.StackInfo{
 		Name:      "test",
 		BuildTool: "test",
 		Version:   "1.0",
 	}
 
-	if m.logSink != nil {
-		io.WriteString(m.logSink, fmt.Sprintf("detector=%s found=true path=%s\n", m.Name(), "test"))
+	if logSink != nil {
+		logs.Tag("detect", "detector=%s found=true path=%s", m.Name(), "test")
 	}
 
 	return info, true, nil
@@ -47,8 +48,8 @@ func (d *mockDetector) Name() string {
 	return "mock"
 }
 
-func (d *mockDetector) SetLogSink(w io.Writer) {
-	d.logSink = w
+func (d *mockDetector) SetLogSink(logSink core.LogSink) {
+	d.logSink = logSink
 }
 
 type mockGenerator struct{}

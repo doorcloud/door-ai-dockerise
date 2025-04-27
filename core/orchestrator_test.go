@@ -3,23 +3,22 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
-	"io"
 	"io/fs"
 	"testing"
 
+	"github.com/doorcloud/door-ai-dockerise/core/logs"
 	"github.com/stretchr/testify/assert"
 )
 
 type mockDetector struct {
 	stack   StackInfo
 	err     error
-	logSink io.Writer
+	logSink LogSink
 }
 
-func (d *mockDetector) Detect(ctx context.Context, fsys fs.FS) (StackInfo, bool, error) {
-	if d.logSink != nil && d.stack.Name != "" {
-		io.WriteString(d.logSink, fmt.Sprintf("detector=%s found=true path=%s\n", d.Name(), d.stack.DetectedFiles[0]))
+func (d *mockDetector) Detect(ctx context.Context, fsys fs.FS, logSink LogSink) (StackInfo, bool, error) {
+	if logSink != nil && d.stack.Name != "" {
+		logs.Tag("detect", "detector=%s found=true path=%s", d.Name(), d.stack.DetectedFiles[0])
 	}
 	return d.stack, d.stack.Name != "", d.err
 }
@@ -28,8 +27,8 @@ func (d *mockDetector) Name() string {
 	return "mock"
 }
 
-func (d *mockDetector) SetLogSink(w io.Writer) {
-	d.logSink = w
+func (d *mockDetector) SetLogSink(logSink LogSink) {
+	d.logSink = logSink
 }
 
 type mockVerifier struct {

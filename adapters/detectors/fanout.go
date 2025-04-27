@@ -2,73 +2,85 @@ package detectors
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"io/fs"
 	"sync"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
+	"github.com/doorcloud/door-ai-dockerise/core/logs"
 )
 
-type detectorResult struct {
-	info  core.StackInfo
-	found bool
-	err   error
+// LogSink is an interface for logging messages
+type LogSink interface {
+	Log(msg string)
 }
 
+// detectionResult represents the result of a detection attempt
+type detectionResult struct {
+	detector core.Detector
+	info     core.StackInfo
+	found    bool
+	err      error
+}
+
+// ParallelDetector implements Detector by trying all detectors in parallel
 type ParallelDetector struct {
 	detectors []core.Detector
-	logSink   io.Writer
 }
 
-func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
-	results := make(chan detectorResult, len(p.detectors))
-	var wg sync.WaitGroup
-
-	for _, d := range p.detectors {
-		wg.Add(1)
-		go func(detector core.Detector) {
-			defer wg.Done()
-			info, found, err := detector.Detect(ctx, fsys)
-			if p.logSink != nil && found {
-				fmt.Fprintf(p.logSink, "detector=%s found=%v path=%s\n",
-					detector.Name(), found, info.DetectedFiles[0])
-			}
-			results <- detectorResult{info: info, found: found, err: err}
-		}(d)
-	}
-
-	wg.Wait()
-	close(results)
-
-	for result := range results {
-		if result.err != nil {
-			return core.StackInfo{}, false, result.err
-		}
-		if result.found {
-			return result.info, true, nil
-		}
-	}
-	return core.StackInfo{}, false, nil
-}
-
-// NewParallelDetector creates a new ParallelDetector instance
-func NewParallelDetector(detectors []core.Detector) *ParallelDetector {
+// NewParallelDetector creates a new ParallelDetector
+func NewParallelDetector(detectors ...core.Detector) *ParallelDetector {
 	return &ParallelDetector{
 		detectors: detectors,
 	}
 }
 
-// Name returns the detector name
-func (p *ParallelDetector) Name() string {
-	return "parallel"
+// Detect implements the Detector interface for ParallelDetector
+func (d *ParallelDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
+	results := make(chan detectionResult, len(d.detectors))
+	var wg sync.WaitGroup
+
+	for _, detector := range d.detectors {
+		wg.Add(1)
+		go func(detector core.Detector) {
+			defer wg.Done()
+			info, found, err := detector.Detect(ctx, fsys, logSink)
+			results <- detectionResult{
+				detector: detector,
+				info:     info,
+				found:    found,
+				err:      err,
+			}
+		}(detector)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var firstErr error
+	for result := range results {
+		if result.err != nil {
+			if firstErr == nil {
+				firstErr = result.err
+			}
+			continue
+		}
+		if result.found {
+			if logSink != nil {
+				logs.Tag("detect", "Detected stack: %s using %s", result.info.Name, result.detector.Name())
+			}
+			return result.info, true, nil
+		}
+	}
+
+	if firstErr != nil {
+		return core.StackInfo{}, false, firstErr
+	}
+	return core.StackInfo{}, false, nil
 }
 
-// SetLogSink sets the log sink for the detector
-func (p *ParallelDetector) SetLogSink(w io.Writer) {
-	p.logSink = w
-	// Propagate log sink to child detectors
-	for _, d := range p.detectors {
-		d.SetLogSink(w)
-	}
+// Name returns the name of the detector
+func (d *ParallelDetector) Name() string {
+	return "parallel"
 }
