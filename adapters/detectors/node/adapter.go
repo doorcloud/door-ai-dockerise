@@ -19,14 +19,15 @@ func NewNodeDetector() *NodeDetector {
 }
 
 // Detect implements the core.Detector interface
-func (n *NodeDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
+func (n *NodeDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
 	if n.d.Detect(fsys) {
 		return core.StackInfo{
-			Name:      "node",
-			BuildTool: "npm",
-		}, nil
+			Name:          "node",
+			BuildTool:     "npm",
+			DetectedFiles: []string{"package.json"},
+		}, true, nil
 	}
-	return core.StackInfo{}, nil
+	return core.StackInfo{}, false, nil
 }
 
 // Name returns the detector name

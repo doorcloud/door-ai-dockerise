@@ -16,14 +16,15 @@ func NewReact() *React {
 	return &React{d: react.ReactDetector{}}
 }
 
-func (r *React) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
+func (r *React) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
 	if r.d.Detect(fsys) {
 		return core.StackInfo{
-			Name:      "react",
-			BuildTool: "npm",
-		}, nil
+			Name:          "react",
+			BuildTool:     "npm",
+			DetectedFiles: []string{"package.json"},
+		}, true, nil
 	}
-	return core.StackInfo{}, nil
+	return core.StackInfo{}, false, nil
 }
 
 // Name returns the detector name

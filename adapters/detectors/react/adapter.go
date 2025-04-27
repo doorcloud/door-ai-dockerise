@@ -17,25 +17,26 @@ func NewReactDetector() *ReactDetector {
 }
 
 // Detect implements the core.Detector interface
-func (d *ReactDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
+func (d *ReactDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
 	// Check for package.json
 	packageJSON, err := fs.ReadFile(fsys, "package.json")
 	if err != nil {
 		if err == fs.ErrNotExist {
-			return core.StackInfo{}, nil
+			return core.StackInfo{}, false, nil
 		}
-		return core.StackInfo{}, err
+		return core.StackInfo{}, false, err
 	}
 
 	// Check for React dependencies
 	if !containsReact(string(packageJSON)) {
-		return core.StackInfo{}, nil
+		return core.StackInfo{}, false, nil
 	}
 
 	return core.StackInfo{
-		Name:      "react",
-		BuildTool: "npm",
-	}, nil
+		Name:          "react",
+		BuildTool:     "npm",
+		DetectedFiles: []string{"package.json"},
+	}, true, nil
 }
 
 // containsReact checks if the package.json contains React dependencies

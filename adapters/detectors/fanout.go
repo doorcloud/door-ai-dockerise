@@ -11,8 +11,9 @@ import (
 )
 
 type detectorResult struct {
-	info core.StackInfo
-	err  error
+	info  core.StackInfo
+	found bool
+	err   error
 }
 
 type DetectorOptions struct {
@@ -24,7 +25,7 @@ type ParallelDetector struct {
 	opts      *DetectorOptions
 }
 
-func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
+func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
 	results := make(chan detectorResult, len(p.detectors))
 	var wg sync.WaitGroup
 
@@ -32,16 +33,12 @@ func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackIn
 		wg.Add(1)
 		go func(detector core.Detector) {
 			defer wg.Done()
-			info, err := detector.Detect(ctx, fsys)
-			if p.opts != nil && p.opts.LogSink != nil {
-				detectorName := "unknown"
-				if n, ok := detector.(interface{ Name() string }); ok {
-					detectorName = n.Name()
-				}
-				fmt.Fprintf(p.opts.LogSink, "detector=%s found=%v files=%v\n",
-					detectorName, info.Name != "", info.DetectedFiles)
+			info, found, err := detector.Detect(ctx, fsys)
+			if p.opts != nil && p.opts.LogSink != nil && found {
+				fmt.Fprintf(p.opts.LogSink, "detector=%s found=%v path=%s\n",
+					detector.Name(), found, info.DetectedFiles[0])
 			}
-			results <- detectorResult{info: info, err: err}
+			results <- detectorResult{info: info, found: found, err: err}
 		}(d)
 	}
 
@@ -50,13 +47,13 @@ func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackIn
 
 	for result := range results {
 		if result.err != nil {
-			return core.StackInfo{}, result.err
+			return core.StackInfo{}, false, result.err
 		}
-		if result.info.Name != "" {
-			return result.info, nil
+		if result.found {
+			return result.info, true, nil
 		}
 	}
-	return core.StackInfo{}, nil
+	return core.StackInfo{}, false, nil
 }
 
 // NewParallelDetector creates a new ParallelDetector instance

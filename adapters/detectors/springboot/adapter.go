@@ -16,14 +16,15 @@ func NewSpringBootDetector() *SpringBootDetector {
 	return &SpringBootDetector{d: springboot.SpringBootDetector{}}
 }
 
-func (s *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
+func (s *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, bool, error) {
 	if s.d.Detect(fsys) {
 		return core.StackInfo{
-			Name:      "springboot",
-			BuildTool: "maven",
-		}, nil
+			Name:          "springboot",
+			BuildTool:     "maven",
+			DetectedFiles: []string{"pom.xml"},
+		}, true, nil
 	}
-	return core.StackInfo{}, nil
+	return core.StackInfo{}, false, nil
 }
 
 // Name returns the detector name

@@ -166,8 +166,8 @@ func (o *Orchestrator) detectStack(
 	o.logf("Detecting stack...")
 	fsys := os.DirFS(root)
 	for _, d := range o.detectors {
-		stack, err := d.Detect(ctx, fsys)
-		if err == nil && stack.Name != "" {
+		stack, found, err := d.Detect(ctx, fsys)
+		if err == nil && found {
 			if logs != nil {
 				fmt.Fprintf(logs, "Detected stack: %s\n", stack.Name)
 			}

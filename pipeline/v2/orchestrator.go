@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -41,18 +42,15 @@ func NewOrchestrator(
 }
 
 // Run executes the Dockerfile generation pipeline
-func (o *Orchestrator) Run(ctx context.Context, dir string) error {
-	// Convert directory to filesystem
-	fsys := os.DirFS(dir)
+func (o *Orchestrator) Run(ctx context.Context, path string) error {
+	fsys := os.DirFS(path)
 
-	// Detect stack type
-	stack, err := o.detector.Detect(ctx, fsys)
+	// Detect stack
+	stack, found, err := o.detector.Detect(ctx, fsys)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to detect stack: %w", err)
 	}
-
-	// If no stack was detected, return an error
-	if stack.Name == "" {
+	if !found {
 		return ErrNoStackDetected
 	}
 
@@ -83,14 +81,14 @@ func (o *Orchestrator) Run(ctx context.Context, dir string) error {
 	}
 
 	// Write Dockerfile
-	dockerfilePath := filepath.Join(dir, "Dockerfile")
+	dockerfilePath := filepath.Join(path, "Dockerfile")
 	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0644); err != nil {
 		return err
 	}
 
 	// Build Docker image
 	opts := docker.BuildOptions{
-		Context:    dir,
+		Context:    path,
 		Tags:       []string{"myapp:latest"},
 		Dockerfile: "Dockerfile",
 	}

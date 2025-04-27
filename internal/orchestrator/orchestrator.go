@@ -185,12 +185,16 @@ func (o *Orchestrator) detectStack(ctx context.Context, root string, logs io.Wri
 
 	for _, detector := range o.detectors {
 		go func(d core.Detector) {
-			stack, err := d.Detect(ctx, fsys)
+			stack, found, err := d.Detect(ctx, fsys)
 			if err != nil {
 				errors <- err
 				return
 			}
-			results <- stack
+			if found {
+				results <- stack
+			} else {
+				errors <- nil
+			}
 		}(detector)
 	}
 

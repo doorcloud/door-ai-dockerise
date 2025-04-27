@@ -2,6 +2,7 @@ package v2
 
 import (
 	"context"
+	"io/fs"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
@@ -92,10 +93,10 @@ func WithGenerator(generator core.Generator) func(*Options) {
 	}
 }
 
-// WithDockerDriver sets the Docker driver for the pipeline
-func WithDockerDriver(driver docker.Driver) func(*Options) {
+// WithVerifier sets the verifier for the pipeline
+func WithVerifier(verifier docker.Driver) func(*Options) {
 	return func(opts *Options) {
-		opts.Verifier = driver
+		opts.Verifier = verifier
 	}
 }
 
@@ -104,4 +105,25 @@ func WithMaxRetries(maxRetries int) func(*Options) {
 	return func(opts *Options) {
 		opts.MaxRetries = maxRetries
 	}
+}
+
+// WithDockerDriver sets the Docker driver for the pipeline
+func WithDockerDriver(driver docker.Driver) func(*Options) {
+	return func(opts *Options) {
+		opts.Verifier = driver
+	}
+}
+
+// DetectStack detects the stack using a chain of detectors
+func DetectStack(ctx context.Context, chain core.DetectorChain, fsys fs.FS) (core.StackInfo, bool, error) {
+	for _, d := range chain {
+		info, found, err := d.Detect(ctx, fsys)
+		if err != nil {
+			return core.StackInfo{}, false, err
+		}
+		if found {
+			return info, true, nil
+		}
+	}
+	return core.StackInfo{}, false, nil
 }

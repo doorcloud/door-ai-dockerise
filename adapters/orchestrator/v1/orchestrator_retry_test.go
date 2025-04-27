@@ -27,12 +27,12 @@ func (m *mockBuilder) Build(ctx context.Context, in core.BuildInput, log core.Lo
 
 type mockDetector struct{}
 
-func (m *mockDetector) Detect(ctx context.Context, root fs.FS) (core.StackInfo, error) {
+func (m *mockDetector) Detect(ctx context.Context, root fs.FS) (core.StackInfo, bool, error) {
 	return core.StackInfo{
 		Name:      "test",
 		BuildTool: "test",
 		Version:   "1.0",
-	}, nil
+	}, true, nil
 }
 
 func (d *mockDetector) Name() string {

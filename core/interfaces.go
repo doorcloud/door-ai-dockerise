@@ -29,7 +29,7 @@ type Message struct {
 
 // Detector detects the type of application stack
 type Detector interface {
-	Detect(ctx context.Context, fsys fs.FS) (StackInfo, error)
+	Detect(ctx context.Context, fsys fs.FS) (StackInfo, bool, error)
 	Name() string
 }
 
@@ -60,17 +60,17 @@ type FactProvider interface {
 type DetectorChain []Detector
 
 // Detect implements the Detector interface for DetectorChain
-func (c DetectorChain) Detect(ctx context.Context, fsys fs.FS) (StackInfo, error) {
+func (c DetectorChain) Detect(ctx context.Context, fsys fs.FS) (StackInfo, bool, error) {
 	for _, d := range c {
-		info, err := d.Detect(ctx, fsys)
+		info, found, err := d.Detect(ctx, fsys)
 		if err != nil {
-			return StackInfo{}, err
+			return StackInfo{}, false, err
 		}
-		if info.Name != "" {
-			return info, nil
+		if found {
+			return info, true, nil
 		}
 	}
-	return StackInfo{}, nil
+	return StackInfo{}, false, nil
 }
 
 // Name returns the detector chain name

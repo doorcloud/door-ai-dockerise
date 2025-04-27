@@ -27,8 +27,9 @@ func TestReactDetector(t *testing.T) {
 			name: "react project",
 			path: absPath,
 			wantInfo: core.StackInfo{
-				Name:      "react",
-				BuildTool: "npm",
+				Name:          "react",
+				BuildTool:     "npm",
+				DetectedFiles: []string{"package.json"},
 			},
 			wantErr: false,
 		},
@@ -44,7 +45,7 @@ func TestReactDetector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			d := NewReactDetector()
 			fsys := os.DirFS(tt.path)
-			got, err := d.Detect(context.Background(), fsys)
+			got, found, err := d.Detect(context.Background(), fsys)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ReactDetector.Detect() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -54,6 +55,9 @@ func TestReactDetector(t *testing.T) {
 			}
 			if got.BuildTool != tt.wantInfo.BuildTool {
 				t.Errorf("ReactDetector.Detect() = %v, want %v", got.BuildTool, tt.wantInfo.BuildTool)
+			}
+			if found != (tt.wantInfo.Name != "") {
+				t.Errorf("ReactDetector.Detect() found = %v, want %v", found, tt.wantInfo.Name != "")
 			}
 		})
 	}

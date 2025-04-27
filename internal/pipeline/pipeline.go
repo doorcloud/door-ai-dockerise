@@ -80,7 +80,14 @@ func (p *Pipeline) detectStack(ctx context.Context, fsys fs.FS) (core.StackInfo,
 		LogSink: p.logSink,
 	})
 
-	return parallelDetector.Detect(ctx, fsys)
+	info, found, err := parallelDetector.Detect(ctx, fsys)
+	if err != nil {
+		return core.StackInfo{}, err
+	}
+	if !found {
+		return core.StackInfo{}, nil
+	}
+	return info, nil
 }
 
 func (p *Pipeline) gatherFacts(ctx context.Context, fsys fs.FS, stack core.StackInfo) (core.Facts, error) {

@@ -95,7 +95,7 @@ export default App;`
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewReact()
 			fsys := os.DirFS(tt.dir)
-			got, err := r.Detect(context.Background(), fsys)
+			got, found, err := r.Detect(context.Background(), fsys)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("React.Detect() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -105,6 +105,9 @@ export default App;`
 			}
 			if got.BuildTool != tt.wantInfo.BuildTool {
 				t.Errorf("React.Detect() = %v, want %v", got.BuildTool, tt.wantInfo.BuildTool)
+			}
+			if found != (tt.wantInfo.Name != "") {
+				t.Errorf("React.Detect() found = %v, want %v", found, tt.wantInfo.Name != "")
 			}
 		})
 	}

@@ -14,8 +14,8 @@ type mockDetector struct {
 	err   error
 }
 
-func (d *mockDetector) Detect(ctx context.Context, fsys fs.FS) (StackInfo, error) {
-	return d.stack, d.err
+func (d *mockDetector) Detect(ctx context.Context, fsys fs.FS) (StackInfo, bool, error) {
+	return d.stack, d.stack.Name != "", d.err
 }
 
 func (d *mockDetector) Name() string {

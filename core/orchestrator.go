@@ -35,7 +35,7 @@ func (o *Orchestrator) Run(ctx context.Context, root string, spec *Spec) (string
 		}
 	} else {
 		fsys := os.DirFS(root)
-		stack, err = o.detector.Detect(ctx, fsys)
+		stack, _, err = o.detector.Detect(ctx, fsys)
 		if err != nil {
 			return "", fmt.Errorf("failed to detect stack: %w", err)
 		}
