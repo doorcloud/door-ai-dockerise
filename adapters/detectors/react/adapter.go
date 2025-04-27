@@ -2,6 +2,7 @@ package react
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"strings"
 
@@ -30,8 +31,53 @@ func (d *ReactDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.Log
 		return core.StackInfo{}, false, err
 	}
 
+	// Parse package.json
+	var pkg struct {
+		Dependencies    map[string]string `json:"dependencies"`
+		DevDependencies map[string]string `json:"devDependencies"`
+	}
+	if err := json.Unmarshal(packageJSON, &pkg); err != nil {
+		return core.StackInfo{}, false, err
+	}
+
 	// Check for React dependencies
-	if !containsReact(string(packageJSON)) {
+	hasReact := false
+	hasReactDom := false
+	for dep := range pkg.Dependencies {
+		if dep == "react" {
+			hasReact = true
+		}
+		if dep == "react-dom" {
+			hasReactDom = true
+		}
+	}
+
+	// Must have both react and react-dom
+	if !hasReact || !hasReactDom {
+		return core.StackInfo{}, false, nil
+	}
+
+	// Check for React source files
+	entries, err := fs.ReadDir(fsys, "src")
+	if err != nil {
+		return core.StackInfo{}, false, nil
+	}
+
+	hasReactFile := false
+	for _, entry := range entries {
+		if !entry.IsDir() && (strings.HasSuffix(entry.Name(), ".jsx") || strings.HasSuffix(entry.Name(), ".tsx")) {
+			content, err := fs.ReadFile(fsys, "src/"+entry.Name())
+			if err != nil {
+				continue
+			}
+			if strings.Contains(string(content), "import React") {
+				hasReactFile = true
+				break
+			}
+		}
+	}
+
+	if !hasReactFile {
 		return core.StackInfo{}, false, nil
 	}
 
@@ -46,11 +92,6 @@ func (d *ReactDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.Log
 	}
 
 	return info, true, nil
-}
-
-// containsReact checks if the package.json contains React dependencies
-func containsReact(packageJSON string) bool {
-	return strings.Contains(packageJSON, `"react"`) || strings.Contains(packageJSON, `"@types/react"`)
 }
 
 // Name returns the detector name

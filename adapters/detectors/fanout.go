@@ -2,9 +2,13 @@ package detectors
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"sync"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/node"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/spring"
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/core/logs"
 )
@@ -22,20 +26,27 @@ type detectionResult struct {
 	err      error
 }
 
-// ParallelDetector implements Detector by trying all detectors in parallel
-type ParallelDetector struct {
+// FanoutDetector implements core.Detector by running all detectors in parallel
+type FanoutDetector struct {
 	detectors []core.Detector
+	logSink   core.LogSink
 }
 
-// NewParallelDetector creates a new ParallelDetector
-func NewParallelDetector(detectors ...core.Detector) *ParallelDetector {
-	return &ParallelDetector{
-		detectors: detectors,
+// NewFanoutDetector creates a new FanoutDetector with all available detectors
+func NewFanoutDetector() *FanoutDetector {
+	return &FanoutDetector{
+		detectors: []core.Detector{
+			spring.NewSpringBootDetectorV2(),
+			react.NewReactDetector(),
+			node.NewNodeDetector(),
+		},
 	}
 }
 
-// Detect implements the Detector interface for ParallelDetector
-func (d *ParallelDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
+// Detect implements the core.Detector interface
+func (d *FanoutDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
+	d.logSink = logSink
+
 	results := make(chan detectionResult, len(d.detectors))
 	var wg sync.WaitGroup
 
@@ -44,11 +55,20 @@ func (d *ParallelDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.
 		go func(detector core.Detector) {
 			defer wg.Done()
 			info, found, err := detector.Detect(ctx, fsys, logSink)
+			if err != nil && !errors.Is(err, fs.ErrNotExist) {
+				results <- detectionResult{
+					detector: detector,
+					info:     info,
+					found:    found,
+					err:      err,
+				}
+				return
+			}
 			results <- detectionResult{
 				detector: detector,
 				info:     info,
 				found:    found,
-				err:      err,
+				err:      nil,
 			}
 		}(detector)
 	}
@@ -80,7 +100,15 @@ func (d *ParallelDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.
 	return core.StackInfo{}, false, nil
 }
 
-// Name returns the name of the detector
-func (d *ParallelDetector) Name() string {
-	return "parallel"
+// Name returns the detector name
+func (d *FanoutDetector) Name() string {
+	return "fanout"
+}
+
+// SetLogSink sets the log sink for the detector
+func (d *FanoutDetector) SetLogSink(logSink core.LogSink) {
+	d.logSink = logSink
+	for _, detector := range d.detectors {
+		detector.SetLogSink(logSink)
+	}
 }
