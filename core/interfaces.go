@@ -24,8 +24,8 @@ type Fact struct {
 
 // Message represents a chat message
 type Message struct {
-	Role    string
-	Content string
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 // LogSink is an interface for logging messages

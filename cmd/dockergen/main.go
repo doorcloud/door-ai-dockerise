@@ -9,19 +9,19 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 	"github.com/doorcloud/door-ai-dockerise/pipeline"
 	"github.com/doorcloud/door-ai-dockerise/providers/facts"
-	"github.com/doorcloud/door-ai-dockerise/providers/llm/openai"
+	"github.com/doorcloud/door-ai-dockerise/providers/llm/factory"
 )
 
 func main() {
 	dir := flag.String("dir", ".", "Directory to analyze")
-	apiKey := flag.String("api-key", "", "OpenAI API key")
 	flag.Parse()
 
-	if *apiKey == "" {
-		log.Fatal("OpenAI API key is required")
+	// Create LLM provider
+	llmClient, err := factory.New("openai")
+	if err != nil {
+		log.Fatalf("Failed to create LLM provider: %v", err)
 	}
 
-	llmClient := openai.NewProvider(*apiKey)
 	dockerDriver := docker.NewMockDriver()
 
 	// Create pipeline with detectors

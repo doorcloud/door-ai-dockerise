@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
@@ -14,32 +16,49 @@ import (
 type Provider struct {
 	apiKey string
 	client *http.Client
+	model  string
 }
 
 func NewProvider(apiKey string) *Provider {
+	// If API key is empty, try to get it from environment
+	if apiKey == "" {
+		apiKey = os.Getenv("OPENAI_API_KEY")
+	}
+
+	// Get model from environment, default to gpt-3.5-turbo
+	model := os.Getenv("OPENAI_MODEL")
+	if model == "" {
+		model = "gpt-3.5-turbo"
+	}
+
 	return &Provider{
 		apiKey: apiKey,
 		client: &http.Client{},
+		model:  model,
 	}
 }
 
 func (p *Provider) Complete(ctx context.Context, messages []core.Message) (string, error) {
+	if p.apiKey == "" {
+		return "", fmt.Errorf("OpenAI API key not provided")
+	}
+
 	payload := struct {
 		Model    string         `json:"model"`
 		Messages []core.Message `json:"messages"`
 	}{
-		Model:    "gpt-3.5-turbo",
+		Model:    p.model,
 		Messages: messages,
 	}
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to marshal request: %v", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.openai.com/v1/chat/completions", strings.NewReader(string(jsonData)))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -47,12 +66,13 @@ func (p *Provider) Complete(ctx context.Context, messages []core.Message) (strin
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to make request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("OpenAI API returned status code %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("OpenAI API returned status code %d: %s", resp.StatusCode, string(body))
 	}
 
 	var result struct {
@@ -64,7 +84,7 @@ func (p *Provider) Complete(ctx context.Context, messages []core.Message) (strin
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to decode response: %v", err)
 	}
 
 	if len(result.Choices) == 0 {
