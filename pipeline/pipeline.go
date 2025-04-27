@@ -133,12 +133,17 @@ func WithLogSink(logSink io.Writer) func(*Options) {
 // DetectStack detects the stack using a chain of detectors
 func DetectStack(ctx context.Context, chain core.DetectorChain, fsys fs.FS) (core.StackInfo, bool, error) {
 	for _, d := range chain {
-		info, found, err := d.Detect(ctx, fsys, nil)
-		if err != nil {
-			return core.StackInfo{}, false, err
-		}
-		if found {
-			return info, true, nil
+		select {
+		case <-ctx.Done():
+			return core.StackInfo{}, false, ctx.Err()
+		default:
+			info, found, err := d.Detect(ctx, fsys, nil)
+			if err != nil {
+				return core.StackInfo{}, false, err
+			}
+			if found {
+				return info, true, nil
+			}
 		}
 	}
 	return core.StackInfo{}, false, nil

@@ -43,6 +43,11 @@ func NewOrchestrator(
 
 // Run executes the Dockerfile generation pipeline
 func (o *Orchestrator) Run(ctx context.Context, path string) error {
+	// Check context before starting
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	fsys := os.DirFS(path)
 
 	// Detect stack
@@ -54,9 +59,19 @@ func (o *Orchestrator) Run(ctx context.Context, path string) error {
 		return ErrNoStackDetected
 	}
 
+	// Check context after detection
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	// Gather facts about the stack
 	factSlice, err := o.factProvider.Facts(ctx, stack)
 	if err != nil {
+		return err
+	}
+
+	// Check context after fact gathering
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
@@ -77,6 +92,11 @@ func (o *Orchestrator) Run(ctx context.Context, path string) error {
 	// Generate Dockerfile
 	dockerfile, err := o.generator.Generate(ctx, facts)
 	if err != nil {
+		return err
+	}
+
+	// Check context after generation
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
