@@ -18,6 +18,10 @@ func (d *mockDetector) Detect(ctx context.Context, fsys fs.FS) (StackInfo, error
 	return d.stack, d.err
 }
 
+func (d *mockDetector) Name() string {
+	return "mock"
+}
+
 type mockVerifier struct {
 	err error
 }

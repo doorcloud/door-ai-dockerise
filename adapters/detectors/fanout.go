@@ -33,9 +33,13 @@ func (p *ParallelDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackIn
 		go func(detector core.Detector) {
 			defer wg.Done()
 			info, err := detector.Detect(ctx, fsys)
-			if p.opts.LogSink != nil {
-				fmt.Fprintf(p.opts.LogSink, "detector=%T found=%v files=%v\n",
-					detector, info.Name != "", info.DetectedFiles)
+			if p.opts != nil && p.opts.LogSink != nil {
+				detectorName := "unknown"
+				if n, ok := detector.(interface{ Name() string }); ok {
+					detectorName = n.Name()
+				}
+				fmt.Fprintf(p.opts.LogSink, "detector=%s found=%v files=%v\n",
+					detectorName, info.Name != "", info.DetectedFiles)
 			}
 			results <- detectorResult{info: info, err: err}
 		}(d)
@@ -64,4 +68,9 @@ func NewParallelDetector(detectors []core.Detector, opts *DetectorOptions) *Para
 		detectors: detectors,
 		opts:      opts,
 	}
+}
+
+// Name returns the detector name
+func (p *ParallelDetector) Name() string {
+	return "parallel"
 }

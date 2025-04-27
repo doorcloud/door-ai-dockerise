@@ -30,6 +30,7 @@ type Message struct {
 // Detector detects the type of application stack
 type Detector interface {
 	Detect(ctx context.Context, fsys fs.FS) (StackInfo, error)
+	Name() string
 }
 
 // Generator generates a Dockerfile for a given stack
@@ -70,6 +71,11 @@ func (c DetectorChain) Detect(ctx context.Context, fsys fs.FS) (StackInfo, error
 		}
 	}
 	return StackInfo{}, nil
+}
+
+// Name returns the detector chain name
+func (c DetectorChain) Name() string {
+	return "chain"
 }
 
 // Facts contains information about the application stack

@@ -25,3 +25,8 @@ func (s *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS) (core.Stack
 	}
 	return core.StackInfo{}, nil
 }
+
+// Name returns the detector name
+func (s *SpringBootDetector) Name() string {
+	return "springboot"
+}

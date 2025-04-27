@@ -42,3 +42,8 @@ func (d *ReactDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo,
 func containsReact(packageJSON string) bool {
 	return strings.Contains(packageJSON, `"react"`) || strings.Contains(packageJSON, `"@types/react"`)
 }
+
+// Name returns the detector name
+func (d *ReactDetector) Name() string {
+	return "react"
+}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
@@ -74,42 +75,12 @@ func (p *Pipeline) Process(ctx context.Context, dir string) (string, error) {
 }
 
 func (p *Pipeline) detectStack(ctx context.Context, fsys fs.FS) (core.StackInfo, error) {
-	var wg sync.WaitGroup
-	errCh := make(chan error, len(p.detectors))
-	stackCh := make(chan core.StackInfo, 1)
+	// Create parallel detector with log sink
+	parallelDetector := detectors.NewParallelDetector(p.detectors, &detectors.DetectorOptions{
+		LogSink: p.logSink,
+	})
 
-	for _, d := range p.detectors {
-		wg.Add(1)
-		go func(d core.Detector) {
-			defer wg.Done()
-			stack, err := d.Detect(ctx, fsys)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			if stack.Name != "" {
-				select {
-				case stackCh <- stack:
-				default:
-				}
-			}
-		}(d)
-	}
-
-	go func() {
-		wg.Wait()
-		close(errCh)
-		close(stackCh)
-	}()
-
-	select {
-	case stack := <-stackCh:
-		return stack, nil
-	case err := <-errCh:
-		return core.StackInfo{}, err
-	case <-ctx.Done():
-		return core.StackInfo{}, ctx.Err()
-	}
+	return parallelDetector.Detect(ctx, fsys)
 }
 
 func (p *Pipeline) gatherFacts(ctx context.Context, fsys fs.FS, stack core.StackInfo) (core.Facts, error) {

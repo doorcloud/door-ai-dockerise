@@ -35,6 +35,10 @@ func (m *mockDetector) Detect(ctx context.Context, root fs.FS) (core.StackInfo, 
 	}, nil
 }
 
+func (d *mockDetector) Name() string {
+	return "mock"
+}
+
 type mockGenerator struct{}
 
 func (m *mockGenerator) Generate(ctx context.Context, facts core.Facts) (string, error) {

@@ -25,3 +25,8 @@ func (r *React) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, error) 
 	}
 	return core.StackInfo{}, nil
 }
+
+// Name returns the detector name
+func (r *React) Name() string {
+	return "react"
+}

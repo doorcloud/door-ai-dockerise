@@ -28,3 +28,8 @@ func (n *NodeDetector) Detect(ctx context.Context, fsys fs.FS) (core.StackInfo, 
 	}
 	return core.StackInfo{}, nil
 }
+
+// Name returns the detector name
+func (n *NodeDetector) Name() string {
+	return "node"
+}
