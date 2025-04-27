@@ -45,7 +45,7 @@ func (d *SpringBootDetectorV2) detectMaven(fsys fs.FS) (core.StackInfo, bool, er
 	// First check for app module
 	appPom, err := fs.ReadFile(fsys, "app/pom.xml")
 	if err == nil {
-		if containsSpringBoot(string(appPom)) {
+		if containsSpringBootV2(string(appPom)) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "maven",
@@ -73,7 +73,7 @@ func (d *SpringBootDetectorV2) detectMaven(fsys fs.FS) (core.StackInfo, bool, er
 			continue
 		}
 
-		if containsSpringBoot(string(subPom)) {
+		if containsSpringBootV2(string(subPom)) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "maven",
@@ -87,7 +87,7 @@ func (d *SpringBootDetectorV2) detectMaven(fsys fs.FS) (core.StackInfo, bool, er
 	// Finally check root pom.xml
 	pomXML, err := fs.ReadFile(fsys, "pom.xml")
 	if err == nil {
-		if containsSpringBoot(string(pomXML)) {
+		if containsSpringBootV2(string(pomXML)) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "maven",
@@ -106,7 +106,7 @@ func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 	// First check for app module
 	appGradle, err := fs.ReadFile(fsys, "app/build.gradle")
 	if err == nil {
-		if containsSpringBoot(string(appGradle)) {
+		if containsSpringBootV2(string(appGradle)) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
@@ -119,7 +119,7 @@ func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 
 	appGradleKts, err := fs.ReadFile(fsys, "app/build.gradle.kts")
 	if err == nil {
-		if containsSpringBoot(string(appGradleKts)) {
+		if containsSpringBootV2(string(appGradleKts)) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
@@ -133,7 +133,7 @@ func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 	// Then check root build files
 	buildGradle, err := fs.ReadFile(fsys, "build.gradle")
 	if err == nil {
-		if containsSpringBoot(string(buildGradle)) {
+		if containsSpringBootV2(string(buildGradle)) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
@@ -146,7 +146,7 @@ func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 
 	buildGradleKts, err := fs.ReadFile(fsys, "build.gradle.kts")
 	if err == nil {
-		if containsSpringBoot(string(buildGradleKts)) {
+		if containsSpringBootV2(string(buildGradleKts)) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
@@ -170,7 +170,7 @@ func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 
 		// Check each subdirectory for build.gradle or build.gradle.kts
 		subGradle, err := fs.ReadFile(fsys, filepath.Join(entry.Name(), "build.gradle"))
-		if err == nil && containsSpringBoot(string(subGradle)) {
+		if err == nil && containsSpringBootV2(string(subGradle)) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
@@ -181,7 +181,7 @@ func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 		}
 
 		subGradleKts, err := fs.ReadFile(fsys, filepath.Join(entry.Name(), "build.gradle.kts"))
-		if err == nil && containsSpringBoot(string(subGradleKts)) {
+		if err == nil && containsSpringBootV2(string(subGradleKts)) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
@@ -195,8 +195,8 @@ func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 	return core.StackInfo{}, false, nil
 }
 
-// containsSpringBoot checks if the build file contains Spring Boot dependencies
-func containsSpringBoot(content string) bool {
+// containsSpringBootV2 checks if the build file contains Spring Boot dependencies
+func containsSpringBootV2(content string) bool {
 	return strings.Contains(content, "org.springframework.boot") ||
 		strings.Contains(content, "spring-boot")
 }

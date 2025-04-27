@@ -1,0 +1,3 @@
+[submodule "testdata/e2e/spring_positive/maven_multimodule"]
+	path = testdata/e2e/spring_positive/maven_multimodule
+	url = https://github.com/spring-projects/spring-boot.git
