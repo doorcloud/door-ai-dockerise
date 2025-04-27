@@ -73,7 +73,7 @@ func (d *Driver) RunContainer(ctx context.Context, image string) error {
 	}
 
 	// Start the container
-	if err := d.client.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+	if err := d.client.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
@@ -88,7 +88,7 @@ func (d *Driver) RunContainer(ctx context.Context, image string) error {
 	}
 
 	// Remove the container
-	if err := d.client.ContainerRemove(ctx, resp.ID, container.RemoveOptions{}); err != nil {
+	if err := d.client.ContainerRemove(ctx, resp.ID, types.ContainerRemoveOptions{}); err != nil {
 		return fmt.Errorf("failed to remove container: %w", err)
 	}
 

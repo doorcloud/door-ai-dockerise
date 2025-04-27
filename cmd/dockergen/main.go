@@ -4,45 +4,50 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"time"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/log/json"
-	"github.com/doorcloud/door-ai-dockerise/adapters/log/plain"
-	"github.com/doorcloud/door-ai-dockerise/core"
-	"github.com/doorcloud/door-ai-dockerise/internal/orchestrator"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
+	"github.com/doorcloud/door-ai-dockerise/adapters/verifiers"
+	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
+	"github.com/doorcloud/door-ai-dockerise/providers/facts"
+	"github.com/doorcloud/door-ai-dockerise/providers/llm/openai"
 )
 
 func main() {
-	// Parse flags
-	root := flag.String("root", ".", "Project root directory")
-	logFormat := flag.String("log", "plain", "Log format (plain|json)")
+	dir := flag.String("dir", ".", "Directory to analyze")
+	apiKey := flag.String("api-key", "", "OpenAI API key")
 	flag.Parse()
 
-	// Create log streamer
-	var log core.LogStreamer
-	switch *logFormat {
-	case "plain":
-		log = plain.New()
-	case "json":
-		log = json.New()
-	default:
-		fmt.Fprintf(os.Stderr, "Invalid log format: %s\n", *logFormat)
+	if *apiKey == "" {
+		fmt.Fprintln(os.Stderr, "Error: API key is required")
 		os.Exit(1)
 	}
 
-	// Create orchestrator
-	o := orchestrator.New(orchestrator.Opts{
-		Log: nil, // We'll use the LogStreamer directly in Run
+	llmClient := openai.NewProvider(*apiKey)
+	verifier, err := verifiers.NewDocker(verifiers.Options{
+		Socket:  "unix:///var/run/docker.sock",
+		LogSink: os.Stdout,
+		Timeout: 5 * time.Minute,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create Docker verifier: %v", err)
+	}
+
+	p := pipeline.New(pipeline.Options{
+		Detectors:     detectors.DefaultDetectors(),
+		FactProviders: facts.DefaultProviders(llmClient),
+		Generator:     llmClient,
+		Verifier:      verifier,
+		MaxAttempts:   3,
 	})
 
-	// Run the orchestrator
-	ctx := context.Background()
-	dockerfile, err := o.Run(ctx, *root, nil, log)
+	dockerfile, err := p.Process(context.Background(), *dir)
 	if err != nil {
-		log.Error(fmt.Sprintf("Failed to generate Dockerfile: %v", err))
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Print the generated Dockerfile
 	fmt.Println(dockerfile)
 }

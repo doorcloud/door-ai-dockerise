@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/doorcloud/door-ai-dockerise/adapters/log/plain"
@@ -82,7 +83,7 @@ func cleanupContainer(t *testing.T, containerID string) {
 		t.Logf("Failed to stop container: %v", err)
 	}
 
-	err = cli.ContainerRemove(context.Background(), containerID, container.RemoveOptions{})
+	err = cli.ContainerRemove(context.Background(), containerID, types.ContainerRemoveOptions{})
 	if err != nil {
 		t.Logf("Failed to remove container: %v", err)
 	}

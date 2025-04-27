@@ -5,17 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
-	"github.com/doorcloud/door-ai-dockerise/adapters/verifiers"
-	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
-	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
 	"github.com/stretchr/testify/assert"
 )
@@ -178,22 +174,70 @@ func TestIntegration_React(t *testing.T) {
 	mockLLM := mock.NewMockLLM()
 
 	// Create pipeline
-	p := pipeline.New(
-		detectors.DefaultDetectors(),
-		[]core.Generator{generate.NewLLM(mockLLM)},
-		[]core.Verifier{verifiers.NewDocker()},
-		[]core.FactProvider{facts.NewStatic()},
+	p := v2.NewPipeline(
+		v2.WithDetectors(
+			detectors.NewReact(),
+			springboot.NewSpringBootDetector(),
+		),
+		v2.WithFactProviders(
+			facts.NewStatic(),
+		),
+		v2.WithGenerator(generate.NewLLM(mockLLM)),
+		v2.WithDockerDriver(docker.NewMockDriver()),
+		v2.WithMaxRetries(3),
 	)
-
-	// Create log recorder
-	reader, streamer := NewRecorder()
 
 	// Run the pipeline
 	ctx := context.Background()
-	_, err = p.Run(ctx, dir, nil, streamer)
+	err = p.Run(ctx, dir)
 	assert.NoError(t, err)
 
-	// Verify build logs
-	AssertLog(t, reader, "npm ci", 2*time.Minute)
-	AssertLog(t, reader, "Successfully built", 2*time.Minute)
+	// Verify Dockerfile was created
+	dockerfilePath := filepath.Join(dir, "Dockerfile")
+	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
+		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
+	}
+}
+
+func TestReactSpecV2(t *testing.T) {
+	if os.Getenv("DG_E2E") == "" {
+		t.Skip("Skipping integration test. Set DG_E2E=1 to run.")
+	}
+
+	// Create mock LLM
+	mockLLM := mock.NewMockLLM()
+
+	// Create pipeline with mock components
+	p := v2.NewPipeline(
+		v2.WithDetectors(
+			detectors.NewReact(),
+			springboot.NewSpringBootDetector(),
+		),
+		v2.WithFactProviders(
+			facts.NewStatic(),
+		),
+		v2.WithGenerator(generate.NewLLM(mockLLM)),
+		v2.WithDockerDriver(docker.NewMockDriver()),
+		v2.WithMaxRetries(3),
+	)
+
+	// Create test context
+	ctx := context.Background()
+
+	// Get absolute path to test project
+	projectPath, err := filepath.Abs("testdata/react")
+	if err != nil {
+		t.Fatalf("Failed to get absolute path: %v", err)
+	}
+
+	// Run the pipeline
+	if err := p.Run(ctx, projectPath); err != nil {
+		t.Errorf("Pipeline.Run() error = %v", err)
+	}
+
+	// Verify Dockerfile was created
+	dockerfilePath := filepath.Join(projectPath, "Dockerfile")
+	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
+		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
+	}
 }

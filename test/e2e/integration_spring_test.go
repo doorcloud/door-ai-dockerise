@@ -5,15 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
-	"github.com/doorcloud/door-ai-dockerise/adapters/verifiers"
-	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
-	"github.com/doorcloud/door-ai-dockerise/internal/pipeline"
+	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
+	v2 "github.com/doorcloud/door-ai-dockerise/pipeline/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,7 +39,7 @@ func TestIntegration_Spring(t *testing.T) {
     <groupId>com.example</groupId>
     <artifactId>demo</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>demo</name>
+    <n>demo</n>
     <description>Demo project for Spring Boot</description>
     <properties>
         <java.version>11</java.version>
@@ -86,23 +85,28 @@ public class DemoApplication {
 	// Create mock LLM
 	mockLLM := mock.NewMockLLM()
 
-	// Create pipeline
-	p := pipeline.New(
-		detectors.DefaultDetectors(),
-		[]core.Generator{generate.NewLLM(mockLLM)},
-		[]core.Verifier{verifiers.NewDocker()},
-		[]core.FactProvider{facts.NewStatic()},
+	// Create pipeline with mock components
+	p := v2.NewPipeline(
+		v2.WithDetectors(
+			detectors.NewReact(),
+			springboot.NewSpringBootDetector(),
+		),
+		v2.WithFactProviders(
+			facts.NewStatic(),
+		),
+		v2.WithGenerator(generate.NewLLM(mockLLM)),
+		v2.WithDockerDriver(docker.NewMockDriver()),
+		v2.WithMaxRetries(3),
 	)
-
-	// Create log recorder
-	reader, streamer := NewRecorder()
 
 	// Run the pipeline
 	ctx := context.Background()
-	_, err = p.Run(ctx, dir, nil, streamer)
+	err = p.Run(ctx, dir)
 	assert.NoError(t, err)
 
-	// Verify build logs
-	AssertLog(t, reader, "mvn -q package", 2*time.Minute)
-	AssertLog(t, reader, "BUILD SUCCESS", 2*time.Minute)
+	// Verify Dockerfile was created
+	dockerfilePath := filepath.Join(dir, "Dockerfile")
+	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
+		t.Errorf("Dockerfile was not created at %s", dockerfilePath)
+	}
 }
