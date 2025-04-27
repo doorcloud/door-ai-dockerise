@@ -23,11 +23,56 @@ func New(apiKey string) *OpenAI {
 
 // GatherFacts implements the core.ChatCompletion interface
 func (o *OpenAI) GatherFacts(ctx context.Context, fsys fs.FS, stack core.StackInfo) (core.Facts, error) {
-	// For now, just pass through the stack info
-	return core.Facts{
+	// First, gather basic facts from the stack info
+	facts := core.Facts{
 		StackType: stack.Name,
 		BuildTool: stack.BuildTool,
-	}, nil
+		Port:      stack.Port,
+	}
+
+	// Create a prompt to analyze the project
+	prompt := fmt.Sprintf(`Analyze this %s project and provide the following information in JSON format:
+1. Required dependencies and their versions
+2. Build commands and configuration
+3. Runtime requirements
+4. Environment variables needed
+5. Port number if not already specified
+6. Any special considerations for containerization
+
+Project type: %s
+Build tool: %s
+Detected files: %v
+
+Please provide the information in a structured JSON format.`,
+		stack.Name, stack.Name, stack.BuildTool, stack.DetectedFiles)
+
+	// Call OpenAI API to analyze the project
+	resp, err := o.client.CreateChatCompletion(
+		ctx,
+		openai.ChatCompletionRequest{
+			Model: openai.GPT4,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleSystem,
+					Content: "You are a Docker expert. Analyze the project and provide detailed information for containerization.",
+				},
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: prompt,
+				},
+			},
+		},
+	)
+	if err != nil {
+		return facts, fmt.Errorf("failed to analyze project: %w", err)
+	}
+
+	// Log the analysis for debugging purposes
+	if len(resp.Choices) > 0 {
+		fmt.Printf("Project analysis: %s\n", resp.Choices[0].Message.Content)
+	}
+
+	return facts, nil
 }
 
 // GenerateDockerfile implements the core.ChatCompletion interface
