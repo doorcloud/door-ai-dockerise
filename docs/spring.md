@@ -100,4 +100,66 @@ SPRING_HEALTH_ENDPOINT=/health ./dockerfile-gen spring-boot-app
 
 # Run with custom timeout
 SPRING_HEALTH_TIMEOUT=60 ./dockerfile-gen spring-boot-app
-``` 
+```
+
+# Spring Boot Detection Rules
+
+## Build Tool Detection
+
+### Maven
+- Looks for `pom.xml` in the root directory
+- Supports multi-module projects with parent POM
+
+### Gradle
+- Looks for `build.gradle` or `build.gradle.kts` in the root directory
+- Supports multi-module projects with `include` or `include()`
+
+## Fact Extraction
+
+### JDK Version
+1. Primary sources:
+   - Maven: `<java.version>` property in `pom.xml`
+   - Gradle: `sourceCompatibility` in build file
+2. Fallback sources:
+   - Maven: `<release>` tag in `.mvn/toolchains.xml`
+   - Gradle: `languageVersion` in toolchain block of `build.gradle.kts`
+
+### Spring Boot Version
+1. Maven sources (in order):
+   - `<spring-boot.version>` property
+   - Parent POM version if groupId is `org.springframework.boot`
+   - `spring-boot-dependencies` version in dependencyManagement
+2. Gradle sources (in order):
+   - Direct version properties
+   - `libs.versions.toml` file
+
+### Build Command
+1. Wrapper detection:
+   - Maven: Uses `./mvnw` if present, otherwise `mvn`
+   - Gradle: Uses `./gradlew` if present, otherwise `gradle`
+2. Multi-module support:
+   - Maven: Adds `-pl <module> -am` for subdirectory artifacts
+   - Gradle: Uses `:<module>:build` for subdirectory artifacts
+
+### Artifact Path
+1. Maven:
+   - Default: `target/*.jar`
+   - Rejects WAR packaging
+2. Gradle:
+   - Default: `build/libs/*.jar`
+   - For multi-module: `<module>/build/libs/*.jar`
+
+### Port and Health
+1. Port detection:
+   - Default: 8080
+   - Overridden by `server.port` in application properties
+2. Health endpoint:
+   - Default: `/` (no actuator)
+   - With actuator: `/actuator/health`
+   - Customized by `management.endpoints.web.base-path`
+
+### SBOM Path
+1. Maven:
+   - `target/bom.cdx.json` or `target/*.cdx.json` from CycloneDX plugin
+2. Gradle:
+   - `build/reports/bom.cdx.json` from CycloneDX task 
