@@ -31,6 +31,40 @@ The Spring Boot detector uses the following heuristics:
      - settings.gradle*
    - Supports both Groovy and Kotlin DSL
 
+### Confidence Score
+
+The detector provides a confidence score based on the number of signals found:
+
+- ≥ 3 signals (builder file + Boot dep + annotation or props) ⇒ 1.0
+- 2 signals ⇒ 0.8
+- 1 signal ⇒ 0.5
+
+Signals include:
+1. Spring Boot parent or platform BOM in Maven, or Spring Boot plugin in Gradle
+2. Spring Boot starter dependencies
+3. Spring Boot annotations in Java files
+4. Spring Boot configuration files
+
+### Version Detection
+
+The detector extracts the Spring Boot version from:
+- Maven: parent version in `pom.xml`
+- Gradle: plugin version in `build.gradle`
+
+Version strings are normalized by stripping everything after the first "-" (e.g. `3.2.0-SNAPSHOT` → `3.2.0`).
+
+### Build Tool Preference
+
+If a repository contains both Maven and Gradle build files, the detector will prefer Maven and skip the Gradle scan.
+
+### Recursive Search
+
+The detector recursively searches for build files up to a depth of 4 directories, allowing it to find Spring Boot modules in subdirectories like `services/api/pom.xml` or `apps/payment/build.gradle`.
+
+### Default Port
+
+If no explicit port is found in configuration files, the detector will use the default port 8080.
+
 ## Adding a New Detector
 
 To add a new detector:

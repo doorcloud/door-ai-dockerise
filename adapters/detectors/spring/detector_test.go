@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSpringBootDetectorV2(t *testing.T) {
+func TestSpringBootDetectorV3(t *testing.T) {
 	tests := []struct {
 		name     string
 		project  string
@@ -24,6 +24,9 @@ func TestSpringBootDetectorV2(t *testing.T) {
 			wantInfo: core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "maven",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    1.0,
 				DetectedFiles: []string{"pom.xml"},
 			},
 			want: true,
@@ -34,6 +37,9 @@ func TestSpringBootDetectorV2(t *testing.T) {
 			wantInfo: core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "maven",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    1.0,
 				DetectedFiles: []string{"app/pom.xml"},
 			},
 			want: true,
@@ -44,6 +50,9 @@ func TestSpringBootDetectorV2(t *testing.T) {
 			wantInfo: core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    1.0,
 				DetectedFiles: []string{"build.gradle"},
 			},
 			want: true,
@@ -54,6 +63,9 @@ func TestSpringBootDetectorV2(t *testing.T) {
 			wantInfo: core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    1.0,
 				DetectedFiles: []string{"build.gradle.kts"},
 			},
 			want: true,
@@ -64,6 +76,9 @@ func TestSpringBootDetectorV2(t *testing.T) {
 			wantInfo: core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    1.0,
 				DetectedFiles: []string{"app/build.gradle"},
 			},
 			want: true,
@@ -74,6 +89,9 @@ func TestSpringBootDetectorV2(t *testing.T) {
 			wantInfo: core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    1.0,
 				DetectedFiles: []string{"sub/sub/build.gradle.kts"},
 			},
 			want: true,
@@ -84,6 +102,19 @@ func TestSpringBootDetectorV2(t *testing.T) {
 			wantInfo: core.StackInfo{},
 			want:     false,
 		},
+		{
+			name:    "mixed builders",
+			project: "testdata/mixed_builders",
+			wantInfo: core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "maven",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    1.0,
+				DetectedFiles: []string{"pom.xml"},
+			},
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -92,7 +123,7 @@ func TestSpringBootDetectorV2(t *testing.T) {
 			fsys := os.DirFS(tt.project)
 
 			// Create detector
-			detector := spring.NewSpringBootDetectorV2()
+			detector := spring.NewSpringBootDetectorV3()
 
 			// Run detection
 			info, found, err := detector.Detect(context.Background(), fsys, nil)

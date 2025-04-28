@@ -2,11 +2,13 @@ package springboot
 
 import (
 	"context"
+	"encoding/xml"
+	"fmt"
+	"io"
 	"io/fs"
 	"strings"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
-	"gopkg.in/yaml.v3"
 )
 
 // SpringBootDetector implements detection rules for Spring Boot projects
@@ -34,90 +36,88 @@ func (d *SpringBootDetector) SetLogSink(logSink core.LogSink) {
 	d.logSink = logSink
 }
 
+type MavenProject struct {
+	XMLName    xml.Name `xml:"project"`
+	Parent     Parent   `xml:"parent"`
+	Properties struct {
+		JavaVersion string `xml:"java.version"`
+	} `xml:"properties"`
+}
+
+type Parent struct {
+	GroupId    string `xml:"groupId"`
+	ArtifactId string `xml:"artifactId"`
+	Version    string `xml:"version"`
+}
+
 // Detect checks if the given filesystem contains a Spring Boot project
 func (d *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
-	var buildTool string
-	var detectedFiles []string
+	d.logSink = logSink
 
-	// Check for build files
-	if pomXml, err := fs.ReadFile(fsys, "pom.xml"); err == nil {
-		if strings.Contains(string(pomXml), "spring-boot") {
-			buildTool = "maven"
-			detectedFiles = append(detectedFiles, "pom.xml")
+	// Check for pom.xml first
+	pomFile, err := fsys.Open("pom.xml")
+	if err == nil {
+		defer pomFile.Close()
+
+		var project MavenProject
+		if err := xml.NewDecoder(pomFile).Decode(&project); err != nil {
+			return core.StackInfo{}, false, fmt.Errorf("failed to parse pom.xml: %w", err)
+		}
+
+		// Check if it's a Spring Boot project
+		if project.Parent.ArtifactId == "spring-boot-starter-parent" {
+			d.logSink.Log(fmt.Sprintf("Detected Spring Boot project with version %s and Java version %s",
+				project.Parent.Version, project.Properties.JavaVersion))
+
+			return core.StackInfo{
+				Name:          "springboot",
+				BuildTool:     "maven",
+				Version:       project.Parent.Version,
+				DetectedFiles: []string{"pom.xml"},
+			}, true, nil
 		}
 	}
 
-	if buildTool == "" {
-		if gradle, err := fs.ReadFile(fsys, "build.gradle"); err == nil {
-			if strings.Contains(string(gradle), "org.springframework.boot") {
-				buildTool = "gradle"
-				detectedFiles = append(detectedFiles, "build.gradle")
+	// Check for Gradle files
+	gradleFiles := []string{"build.gradle", "build.gradle.kts"}
+	for _, gradleFile := range gradleFiles {
+		file, err := fsys.Open(gradleFile)
+		if err == nil {
+			defer file.Close()
+
+			content, err := io.ReadAll(file)
+			if err != nil {
+				return core.StackInfo{}, false, fmt.Errorf("failed to read %s: %w", gradleFile, err)
 			}
-		}
-	}
 
-	if buildTool == "" {
-		if gradleKts, err := fs.ReadFile(fsys, "build.gradle.kts"); err == nil {
-			if strings.Contains(string(gradleKts), "org.springframework.boot") {
-				buildTool = "gradle"
-				detectedFiles = append(detectedFiles, "build.gradle.kts")
-			}
-		}
-	}
-
-	if buildTool == "" {
-		return core.StackInfo{}, false, nil
-	}
-
-	// Default port
-	port := 8080
-
-	// Check for application properties/yml files
-	configFiles := []string{
-		"src/main/resources/application.properties",
-		"src/main/resources/application.yml",
-		"src/main/resources/application.yaml",
-	}
-
-	for _, configFile := range configFiles {
-		if content, err := fs.ReadFile(fsys, configFile); err == nil {
-			detectedFiles = append(detectedFiles, configFile)
-
-			// Try to extract port from properties file
-			if strings.HasSuffix(configFile, ".properties") {
-				lines := strings.Split(string(content), "\n")
-				for _, line := range lines {
-					if strings.HasPrefix(line, "server.port=") {
-						portStr := strings.TrimPrefix(line, "server.port=")
-						if portStr != "" {
-							port = parseInt(portStr)
+			contentStr := string(content)
+			if strings.Contains(contentStr, "org.springframework.boot") {
+				// Try to extract Spring Boot version
+				version := "unknown"
+				if idx := strings.Index(contentStr, "springBootVersion"); idx != -1 {
+					endIdx := strings.Index(contentStr[idx:], "\n")
+					if endIdx != -1 {
+						versionLine := contentStr[idx : idx+endIdx]
+						if strings.Contains(versionLine, "=") {
+							version = strings.TrimSpace(strings.Split(versionLine, "=")[1])
+							version = strings.Trim(version, "'\"")
 						}
 					}
 				}
-			} else {
-				// Try to extract port from YAML file
-				var config struct {
-					Server struct {
-						Port int `yaml:"port"`
-					} `yaml:"server"`
-				}
-				if err := yaml.Unmarshal(content, &config); err == nil && config.Server.Port != 0 {
-					port = config.Server.Port
-				}
+
+				d.logSink.Log(fmt.Sprintf("Detected Spring Boot project with version %s in %s", version, gradleFile))
+
+				return core.StackInfo{
+					Name:          "springboot",
+					BuildTool:     "gradle",
+					Version:       version,
+					DetectedFiles: []string{gradleFile},
+				}, true, nil
 			}
 		}
 	}
 
-	if d.logSink != nil {
-		d.logSink.Log("detector=springboot found=true")
-	}
-
-	return core.StackInfo{
-		Name:          "springboot",
-		BuildTool:     buildTool,
-		Port:          port,
-		DetectedFiles: detectedFiles,
-	}, true, nil
+	return core.StackInfo{}, false, nil
 }
 
 func parseInt(s string) int {
