@@ -1,10 +1,10 @@
 package springboot
 
 import (
+	"context"
 	"encoding/xml"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,6 +15,7 @@ import (
 // SpringBootDetector implements detection rules for Spring Boot projects
 type SpringBootDetector struct {
 	logSink core.LogSink
+	fsys    fs.FS
 }
 
 // NewSpringBootDetector creates a new Spring Boot detector
@@ -39,18 +40,12 @@ func (d *SpringBootDetector) SetLogSink(sink core.LogSink) {
 
 // MavenProject represents a Maven project's pom.xml structure
 type MavenProject struct {
-	Parent     Parent `xml:"parent"`
-	GroupId    string `xml:"groupId"`
-	ArtifactId string `xml:"artifactId"`
-	Version    string `xml:"version"`
-	Properties struct {
-		JavaVersion string `xml:"java.version"`
-	} `xml:"properties"`
-	Dependencies []struct {
-		GroupId    string `xml:"groupId"`
-		ArtifactId string `xml:"artifactId"`
-		Version    string `xml:"version"`
-	} `xml:"dependencies>dependency"`
+	Parent       *Parent      `xml:"parent"`
+	GroupId      string       `xml:"groupId"`
+	ArtifactId   string       `xml:"artifactId"`
+	Version      string       `xml:"version"`
+	Properties   Properties   `xml:"properties"`
+	Dependencies []Dependency `xml:"dependencies>dependency"`
 }
 
 type Parent struct {
@@ -59,122 +54,145 @@ type Parent struct {
 	Version    string `xml:"version"`
 }
 
+type Properties struct {
+	JavaVersion string `xml:"java.version"`
+}
+
+type Dependency struct {
+	GroupId    string `xml:"groupId"`
+	ArtifactId string `xml:"artifactId"`
+	Version    string `xml:"version"`
+}
+
 // Detect checks if the given filesystem contains a Spring Boot project
-func (d *SpringBootDetector) Detect(fsys core.FS, path string) (core.StackInfo, error) {
-	stackInfo := core.StackInfo{
-		Name:       "spring-boot",
-		Port:       8080,
-		Confidence: 0.0,
-	}
+func (d *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
+	d.logSink = logSink
+	d.fsys = fsys
 
 	// Try Maven first
-	pomPath := filepath.Join(path, "pom.xml")
-	if _, err := fsys.Stat(pomPath); err == nil {
-		file, err := fsys.Open(pomPath)
+	pomFile := "pom.xml"
+	if _, err := fs.Stat(d.fsys, pomFile); err == nil {
+		f, err := d.fsys.Open(pomFile)
 		if err != nil {
-			return stackInfo, err
+			return core.StackInfo{}, false, err
 		}
-		defer file.Close()
-
-		content, err := io.ReadAll(file)
-		if err != nil {
-			return stackInfo, err
-		}
+		defer f.Close()
 
 		var project MavenProject
-		if err := xml.Unmarshal(content, &project); err != nil {
-			return stackInfo, err
+		if err := xml.NewDecoder(f).Decode(&project); err != nil {
+			return core.StackInfo{}, false, err
 		}
 
-		// Check for Spring Boot parent
-		isSpringBootParent := project.Parent.GroupId == "org.springframework.boot" &&
-			project.Parent.ArtifactId == "spring-boot-starter-parent"
-
-		// Check for Spring Boot dependencies
-		hasSpringBootDeps := false
-		for _, dep := range project.Dependencies {
-			if dep.GroupId == "org.springframework.boot" {
-				hasSpringBootDeps = true
-				break
-			}
-		}
-
-		if isSpringBootParent || hasSpringBootDeps {
-			stackInfo.BuildTool = "maven"
-			stackInfo.DetectedFiles = []string{pomPath}
-
-			// Get version from parent if available
-			if isSpringBootParent && project.Parent.Version != "" {
-				stackInfo.Version = project.Parent.Version
-			}
-
-			// Check dependencies for version if not found in parent
-			if stackInfo.Version == "" {
-				for _, dep := range project.Dependencies {
-					if dep.GroupId == "org.springframework.boot" && dep.Version != "" {
-						stackInfo.Version = dep.Version
-						break
+		// Check if this is a Spring Boot project
+		isSpringBoot := d.isSpringBootMavenProject(&project)
+		if isSpringBoot {
+			version := d.getSpringBootVersion(&project)
+			if version == "" {
+				// If version not found in current pom, try parent pom
+				parentPomPath := "../pom.xml"
+				if pf, err := d.fsys.Open(parentPomPath); err == nil {
+					defer pf.Close()
+					var parentProject MavenProject
+					if err := xml.NewDecoder(pf).Decode(&parentProject); err == nil {
+						version = d.getSpringBootVersion(&parentProject)
 					}
 				}
 			}
 
-			stackInfo.Confidence = 1.0
-			if !isSpringBootParent {
-				stackInfo.Confidence = 0.8
+			if version != "" {
+				d.logSink.Log("Found Spring Boot Maven project with version " + version)
+				return core.StackInfo{
+					Name:          "spring-boot",
+					Version:       version,
+					Confidence:    1.0,
+					BuildTool:     "maven",
+					DetectedFiles: []string{pomFile},
+				}, true, nil
 			}
-
-			d.logSink.Log("Detected Spring Boot project with version " + stackInfo.Version)
-			return stackInfo, nil
 		}
 	}
 
-	// Try Gradle
-	gradleFiles := []string{
-		filepath.Join(path, "build.gradle"),
-		filepath.Join(path, "build.gradle.kts"),
-	}
-
+	// Try Gradle next
+	gradleFiles := []string{"build.gradle", "build.gradle.kts"}
 	for _, gradleFile := range gradleFiles {
-		if _, err := fsys.Stat(gradleFile); err == nil {
-			file, err := fsys.Open(gradleFile)
+		if _, err := fs.Stat(d.fsys, gradleFile); err == nil {
+			f, err := d.fsys.Open(gradleFile)
 			if err != nil {
-				continue
+				return core.StackInfo{}, false, err
 			}
-			defer file.Close()
+			defer f.Close()
 
-			content, err := io.ReadAll(file)
+			content, err := io.ReadAll(f)
 			if err != nil {
-				continue
+				return core.StackInfo{}, false, err
 			}
 
-			contentStr := string(content)
-			version := d.extractSpringBootVersion(contentStr)
-
-			if strings.Contains(contentStr, "org.springframework.boot") {
-				stackInfo.BuildTool = "gradle"
-				stackInfo.DetectedFiles = []string{gradleFile}
-				stackInfo.Version = version
-				stackInfo.Confidence = 1.0
-
-				if version == "" {
-					stackInfo.Confidence = 0.8
+			if d.isSpringBootGradleProject(string(content)) {
+				version := d.extractSpringBootVersion(string(content))
+				if version != "" {
+					d.logSink.Log("Found Spring Boot Gradle project with version " + version)
+					return core.StackInfo{
+						Name:          "spring-boot",
+						Version:       version,
+						Confidence:    1.0,
+						BuildTool:     "gradle",
+						DetectedFiles: []string{gradleFile},
+					}, true, nil
 				}
-
-				d.logSink.Log("Detected Spring Boot project with version " + stackInfo.Version)
-				return stackInfo, nil
 			}
 		}
 	}
 
-	return stackInfo, nil
+	return core.StackInfo{}, false, nil
+}
+
+func (d *SpringBootDetector) isSpringBootMavenProject(project *MavenProject) bool {
+	// Check parent
+	if project.Parent != nil &&
+		project.Parent.GroupId == "org.springframework.boot" &&
+		project.Parent.ArtifactId == "spring-boot-starter-parent" {
+		return true
+	}
+
+	// Check dependencies
+	for _, dep := range project.Dependencies {
+		if dep.GroupId == "org.springframework.boot" &&
+			strings.Contains(dep.ArtifactId, "spring-boot") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (d *SpringBootDetector) getSpringBootVersion(project *MavenProject) string {
+	// Check parent version first
+	if project.Parent != nil &&
+		project.Parent.GroupId == "org.springframework.boot" &&
+		project.Parent.ArtifactId == "spring-boot-starter-parent" {
+		return project.Parent.Version
+	}
+
+	// Check dependencies
+	for _, dep := range project.Dependencies {
+		if dep.GroupId == "org.springframework.boot" &&
+			strings.Contains(dep.ArtifactId, "spring-boot") &&
+			dep.Version != "" {
+			return dep.Version
+		}
+	}
+
+	return ""
 }
 
 func (d *SpringBootDetector) extractSpringBootVersion(content string) string {
 	// Match version in Gradle files
 	patterns := []string{
 		`id\("org\.springframework\.boot"\)\s+version\s+"([^"]+)"`,
+		`id\s+'org\.springframework\.boot'\s+version\s+'([^']+)'`,
 		`org\.springframework\.boot:spring-boot-gradle-plugin:([^"'\s]+)`,
 		`springBootVersion\s*=\s*['"]([^'"]+)['"]`,
+		`spring-boot-gradle-plugin:([^"'\s]+)`,
 	}
 
 	for _, pattern := range patterns {
@@ -249,4 +267,21 @@ func (d *SpringBootDetector) detectPort(fsys fs.FS) int {
 	}
 
 	return 8080 // Default Spring Boot port
+}
+
+func (d *SpringBootDetector) isSpringBootGradleProject(content string) bool {
+	patterns := []string{
+		`id\s*['"(]org\.springframework\.boot['")\s]`,
+		`org\.springframework\.boot:spring-boot-gradle-plugin`,
+		`spring-boot-starter-web`,
+		`spring-boot-starter-parent`,
+	}
+
+	for _, pattern := range patterns {
+		if regexp.MustCompile(pattern).MatchString(content) {
+			return true
+		}
+	}
+
+	return false
 }

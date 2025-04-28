@@ -46,9 +46,9 @@ func (s *Static) Facts(ctx context.Context, stack core.StackInfo) ([]core.Fact, 
 			{Key: "language", Value: "javascript"},
 			{Key: "buildTool", Value: "npm"},
 		}, nil
-	case "springboot":
+	case "spring-boot":
 		return []core.Fact{
-			{Key: "framework", Value: "springboot"},
+			{Key: "framework", Value: "spring-boot"},
 			{Key: "language", Value: "java"},
 			{Key: "buildTool", Value: "maven"},
 		}, nil

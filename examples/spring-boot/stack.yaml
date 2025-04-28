@@ -1,6 +1,6 @@
 # Spring Boot stack specification
 language: java
-framework: springboot
+framework: spring-boot
 version: "3.2"
 buildTool: maven
 params:

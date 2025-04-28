@@ -213,7 +213,7 @@ func (d *SpringBootDetectorV3) isSpringBootMavenModule(fsys fs.FS, pomPath strin
 	}
 
 	return core.StackInfo{
-		Name:       "springboot",
+		Name:       "spring-boot",
 		BuildTool:  "maven",
 		Port:       defaultPortV3,
 		Version:    version,

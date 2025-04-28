@@ -68,5 +68,5 @@ func TestIntegration_Spring(t *testing.T) {
 	// Check log output
 	logOutput := logBuf.String()
 	t.Logf("Log output: %s", logOutput)
-	assert.True(t, strings.Contains(logOutput, "detector=springboot found=true"), "Expected Spring Boot detector log line")
+	assert.True(t, strings.Contains(logOutput, "detector=spring-boot found=true"), "Expected Spring Boot detector log line")
 }

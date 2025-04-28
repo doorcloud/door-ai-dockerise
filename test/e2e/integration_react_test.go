@@ -155,7 +155,7 @@ func TestReactIntegration(t *testing.T) {
 	// Verify log output
 	logOutput := logBuf.String()
 	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
-	assert.False(t, strings.Contains(logOutput, "detector=springboot found=true"), "Unexpected SpringBoot detector log line")
+	assert.False(t, strings.Contains(logOutput, "detector=spring-boot found=true"), "Unexpected Spring Boot detector log line")
 }
 
 func TestIntegration_React(t *testing.T) {
@@ -261,7 +261,7 @@ func TestIntegration_React(t *testing.T) {
 	// Verify log output
 	logOutput := logBuf.String()
 	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
-	assert.False(t, strings.Contains(logOutput, "detector=springboot found=true"), "Unexpected SpringBoot detector log line")
+	assert.False(t, strings.Contains(logOutput, "detector=spring-boot found=true"), "Unexpected Spring Boot detector log line")
 }
 
 func TestReactSpecV2(t *testing.T) {
@@ -313,5 +313,5 @@ func TestReactSpecV2(t *testing.T) {
 	// Verify log output
 	logOutput := logBuf.String()
 	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
-	assert.False(t, strings.Contains(logOutput, "detector=springboot found=true"), "Unexpected SpringBoot detector log line")
+	assert.False(t, strings.Contains(logOutput, "detector=spring-boot found=true"), "Unexpected Spring Boot detector log line")
 }

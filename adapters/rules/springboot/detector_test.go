@@ -34,7 +34,7 @@ func TestSpringBootDetector_Detect(t *testing.T) {
 				"src/main/resources/application.properties": "spring.application.name=test",
 			},
 			wantInfo: core.StackInfo{
-				Name:      "springboot",
+				Name:      "spring-boot",
 				BuildTool: "maven",
 				Version:   "3.2.0",
 				Port:      8080,
@@ -56,7 +56,7 @@ func TestSpringBootDetector_Detect(t *testing.T) {
   port: 9090`,
 			},
 			wantInfo: core.StackInfo{
-				Name:      "springboot",
+				Name:      "spring-boot",
 				BuildTool: "gradle",
 				Version:   "3.2.0",
 				Port:      9090,
@@ -76,7 +76,7 @@ func TestSpringBootDetector_Detect(t *testing.T) {
 }`,
 			},
 			wantInfo: core.StackInfo{
-				Name:      "springboot",
+				Name:      "spring-boot",
 				BuildTool: "gradle",
 				Version:   "3.2.0",
 				Port:      8080,
