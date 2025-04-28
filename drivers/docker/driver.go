@@ -113,7 +113,7 @@ func (d *dockerDriver) Push(ctx context.Context, image string) error {
 func (d *dockerDriver) BuildDockerfile(ctx context.Context, dir, dockerfile string) (string, error) {
 	// Write Dockerfile to disk
 	dockerfilePath := filepath.Join(dir, "Dockerfile")
-	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0644); err != nil {
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0o644); err != nil {
 		return "", fmt.Errorf("failed to write Dockerfile: %w", err)
 	}
 

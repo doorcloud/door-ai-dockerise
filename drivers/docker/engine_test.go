@@ -21,7 +21,7 @@ func createTestTar(t *testing.T, dockerfile string) io.Reader {
 	// Add Dockerfile to tar
 	err := tw.WriteHeader(&tar.Header{
 		Name: "Dockerfile",
-		Mode: 0644,
+		Mode: 0o644,
 		Size: int64(len(dockerfile)),
 	})
 	if err != nil {
@@ -47,7 +47,7 @@ func TestEngine_Build(t *testing.T) {
 
 		// Create a valid Dockerfile
 		dockerfile := "FROM alpine:latest\nRUN echo 'test'"
-		err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(dockerfile), 0644)
+		err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(dockerfile), 0o644)
 		if err != nil {
 			t.Fatalf("Failed to write Dockerfile: %v", err)
 		}

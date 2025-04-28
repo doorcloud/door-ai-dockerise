@@ -11,9 +11,7 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/drivers/docker"
 )
 
-var (
-	ErrNoStackDetected = errors.New("no stack detected")
-)
+var ErrNoStackDetected = errors.New("no stack detected")
 
 // Orchestrator coordinates the Dockerfile generation pipeline
 type Orchestrator struct {
@@ -102,7 +100,7 @@ func (o *Orchestrator) Run(ctx context.Context, path string) error {
 
 	// Write Dockerfile
 	dockerfilePath := filepath.Join(path, "Dockerfile")
-	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0644); err != nil {
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0o644); err != nil {
 		return err
 	}
 

@@ -37,7 +37,7 @@ func TestReactProject(t *testing.T) {
 			"build": "react-scripts build"
 		}
 	}`
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(packageJson), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(packageJson), 0o644))
 
 	// Run the generator
 	output, err := runGenerator(tempDir)
@@ -179,11 +179,11 @@ func TestIntegration_React(t *testing.T) {
 			"react-dom": "^18.2.0",
 			"react-scripts": "5.0.1"
 		}
-	}`), 0644)
+	}`), 0o644)
 	assert.NoError(t, err)
 
 	// Create src/index.js
-	err = os.MkdirAll(filepath.Join(dir, "src"), 0755)
+	err = os.MkdirAll(filepath.Join(dir, "src"), 0o755)
 	assert.NoError(t, err)
 	err = os.WriteFile(filepath.Join(dir, "src", "index.js"), []byte(`
 		import React from 'react';
@@ -196,7 +196,7 @@ func TestIntegration_React(t *testing.T) {
 				<h1>Hello, World!</h1>
 			</React.StrictMode>
 		);
-	`), 0644)
+	`), 0o644)
 	assert.NoError(t, err)
 
 	// Create src/index.css
@@ -206,11 +206,11 @@ func TestIntegration_React(t *testing.T) {
 			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 			-webkit-font-smoothing: antialiased;
 		}
-	`), 0644)
+	`), 0o644)
 	assert.NoError(t, err)
 
 	// Create public/index.html
-	err = os.MkdirAll(filepath.Join(dir, "public"), 0755)
+	err = os.MkdirAll(filepath.Join(dir, "public"), 0o755)
 	assert.NoError(t, err)
 	err = os.WriteFile(filepath.Join(dir, "public", "index.html"), []byte(`
 		<!DOCTYPE html>
@@ -223,7 +223,7 @@ func TestIntegration_React(t *testing.T) {
 				<div id="root"></div>
 			</body>
 		</html>
-	`), 0644)
+	`), 0o644)
 	assert.NoError(t, err)
 
 	// Create mock LLM

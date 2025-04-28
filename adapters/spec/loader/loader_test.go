@@ -107,7 +107,7 @@ params: "invalid"
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a temporary file with the test content
 			filePath := filepath.Join(tempDir, tt.name+".yaml")
-			err := os.WriteFile(filePath, []byte(tt.content), 0644)
+			err := os.WriteFile(filePath, []byte(tt.content), 0o644)
 			require.NoError(t, err)
 
 			// Load the spec
@@ -140,7 +140,7 @@ func TestLoad_InvalidExtension(t *testing.T) {
 
 	// Create a file with invalid extension
 	filePath := filepath.Join(tempDir, "spec.txt")
-	err = os.WriteFile(filePath, []byte("language: javascript"), 0644)
+	err = os.WriteFile(filePath, []byte("language: javascript"), 0o644)
 	require.NoError(t, err)
 
 	// Try to load the file

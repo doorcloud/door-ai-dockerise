@@ -55,7 +55,7 @@ func TestExtractor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create test data directory
 			projectPath := filepath.Join(os.TempDir(), tt.name)
-			err := os.MkdirAll(projectPath, 0755)
+			err := os.MkdirAll(projectPath, 0o755)
 			assert.NoError(t, err)
 			defer os.RemoveAll(projectPath)
 
@@ -74,7 +74,7 @@ func TestExtractor(t *testing.T) {
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 	</dependencies>
-</project>`), 0644)
+</project>`), 0o644)
 			case "testdata/gradle":
 				err = os.WriteFile(filepath.Join(projectPath, "build.gradle"), []byte(`
 plugins {
@@ -87,9 +87,9 @@ dependencies {
 
 java {
 	sourceCompatibility = '11'
-}`), 0644)
+}`), 0o644)
 				// Create gradlew file
-				err = os.WriteFile(filepath.Join(projectPath, "gradlew"), []byte("#!/bin/sh\necho 'Gradle Wrapper'"), 0755)
+				err = os.WriteFile(filepath.Join(projectPath, "gradlew"), []byte("#!/bin/sh\necho 'Gradle Wrapper'"), 0o755)
 			}
 			assert.NoError(t, err)
 
@@ -112,12 +112,12 @@ java {
 func TestExtract_GradleMultiKtsToolchain(t *testing.T) {
 	// Create test data directory
 	projectPath := filepath.Join(os.TempDir(), "gradle_multi_kts_toolchain")
-	err := os.MkdirAll(projectPath, 0755)
+	err := os.MkdirAll(projectPath, 0o755)
 	assert.NoError(t, err)
 	defer os.RemoveAll(projectPath)
 
 	// Create gradlew file
-	err = os.WriteFile(filepath.Join(projectPath, "gradlew"), []byte("#!/bin/sh\necho 'Gradle Wrapper'"), 0755)
+	err = os.WriteFile(filepath.Join(projectPath, "gradlew"), []byte("#!/bin/sh\necho 'Gradle Wrapper'"), 0o755)
 	assert.NoError(t, err)
 
 	// Create build.gradle.kts file
@@ -130,7 +130,7 @@ java {
 	toolchain {
 		languageVersion.set(JavaLanguageVersion.of(17))
 	}
-}`), 0644)
+}`), 0o644)
 	assert.NoError(t, err)
 
 	extractor := NewExtractor()
@@ -148,7 +148,7 @@ java {
 func TestExtract_MavenParentDepMgmt(t *testing.T) {
 	// Create test data directory
 	projectPath := filepath.Join(os.TempDir(), "maven_parent_depMgmt")
-	err := os.MkdirAll(projectPath, 0755)
+	err := os.MkdirAll(projectPath, 0o755)
 	assert.NoError(t, err)
 	defer os.RemoveAll(projectPath)
 
@@ -171,14 +171,14 @@ func TestExtract_MavenParentDepMgmt(t *testing.T) {
     <properties>
         <java.version>17</java.version>
     </properties>
-</project>`), 0644)
+</project>`), 0o644)
 	assert.NoError(t, err)
 
 	// Create target directory and SBOM file
 	targetPath := filepath.Join(projectPath, "target")
-	err = os.MkdirAll(targetPath, 0755)
+	err = os.MkdirAll(targetPath, 0o755)
 	assert.NoError(t, err)
-	err = os.WriteFile(filepath.Join(targetPath, "bom.cdx.json"), []byte("{}"), 0644)
+	err = os.WriteFile(filepath.Join(targetPath, "bom.cdx.json"), []byte("{}"), 0o644)
 	assert.NoError(t, err)
 
 	extractor := NewExtractor()
@@ -197,7 +197,7 @@ func TestExtract_MavenParentDepMgmt(t *testing.T) {
 func TestExtract_SpringWithoutActuator(t *testing.T) {
 	// Create test data directory
 	projectPath := filepath.Join(os.TempDir(), "spring_without_actuator")
-	err := os.MkdirAll(projectPath, 0755)
+	err := os.MkdirAll(projectPath, 0o755)
 	assert.NoError(t, err)
 	defer os.RemoveAll(projectPath)
 
@@ -226,7 +226,7 @@ func TestExtract_SpringWithoutActuator(t *testing.T) {
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
     </dependencies>
-</project>`), 0644)
+</project>`), 0o644)
 	assert.NoError(t, err)
 
 	extractor := NewExtractor()
@@ -244,7 +244,7 @@ func TestExtract_SpringWithoutActuator(t *testing.T) {
 func TestExtract_InvalidWarPackaging(t *testing.T) {
 	// Create test data directory
 	projectPath := filepath.Join(os.TempDir(), "invalid_war_packaging")
-	err := os.MkdirAll(projectPath, 0755)
+	err := os.MkdirAll(projectPath, 0o755)
 	assert.NoError(t, err)
 	defer os.RemoveAll(projectPath)
 
@@ -274,7 +274,7 @@ func TestExtract_InvalidWarPackaging(t *testing.T) {
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
     </dependencies>
-</project>`), 0644)
+</project>`), 0o644)
 	assert.NoError(t, err)
 
 	extractor := NewExtractor()

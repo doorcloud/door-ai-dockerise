@@ -20,7 +20,7 @@ func NewDockerVerifier() *DockerVerifier {
 func (v *DockerVerifier) Verify(ctx context.Context, root string, dockerfile string) error {
 	// Write Dockerfile to disk
 	dockerfilePath := filepath.Join(root, "Dockerfile")
-	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0644); err != nil {
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0o644); err != nil {
 		return err
 	}
 

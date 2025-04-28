@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts/spring"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
@@ -25,7 +24,7 @@ import (
 type Option func(*Pipeline)
 
 // WithDetectors sets the detectors for the pipeline
-func WithDetectors(detectors ...detectors.Detector) Option {
+func WithDetectors(detectors ...core.Detector) Option {
 	return func(p *Pipeline) {
 		p.detectors = detectors
 	}
@@ -56,7 +55,7 @@ func WithDockerDriver(driver dockerdriver.Driver) Option {
 var ErrNoDetectorMatch = errors.New("no detector matched the project type")
 
 type Pipeline struct {
-	detectors     []detectors.Detector
+	detectors     []core.Detector
 	factProviders []facts.Provider
 	generator     generate.Generator
 	dockerDriver  dockerdriver.Driver
@@ -142,7 +141,7 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) e
 	}
 
 	// Write the Dockerfile
-	if err := os.WriteFile(filepath.Join(projectDir, "Dockerfile"), []byte(response), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectDir, "Dockerfile"), []byte(response), 0o644); err != nil {
 		return fmt.Errorf("failed to write Dockerfile: %w", err)
 	}
 
@@ -166,8 +165,7 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) e
 	}
 
 	// Generate Dockerfile
-	dockerfile, err := p.generator.Generate(ctx, coreFacts)
-	if err != nil {
+	if _, err := p.generator.Generate(ctx, coreFacts); err != nil {
 		return err
 	}
 
@@ -189,8 +187,7 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) e
 		}
 
 		// Create a buffer to capture build and health check logs
-		var logs strings.Builder
-		fmt.Fprintf(&logs, "docker run │ %s\n", dockerfile)
+		var logBuffer strings.Builder
 
 		// Create health verifier
 		verifier := dockerverifier.NewRunner(p.dockerDriver)
@@ -199,10 +196,9 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) e
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
-		if err := verifier.Run(ctx, "myapp:latest", spec, &logs); err != nil {
-			// Include logs in the retry prompt
-			retryPrompt := fmt.Sprintf("Previous attempt failed:\n%s\n\nPlease fix the Dockerfile and try again.", logs.String())
-			return fmt.Errorf("health check failed: %w\n%s", err, retryPrompt)
+		// Run container and verify health
+		if err := verifier.Run(ctx, "myapp:latest", spec, &logBuffer); err != nil {
+			return fmt.Errorf("health check failed: %w\n%s", err, logBuffer.String())
 		}
 	}
 

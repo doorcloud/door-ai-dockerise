@@ -22,7 +22,7 @@ func NewVerifierAdapter(driver docker.Driver) *VerifierAdapter {
 func (v *VerifierAdapter) Verify(ctx context.Context, root string, generatedFile string) error {
 	// Write the Dockerfile to a temporary location
 	dockerfilePath := filepath.Join(root, "Dockerfile")
-	if err := os.WriteFile(dockerfilePath, []byte(generatedFile), 0644); err != nil {
+	if err := os.WriteFile(dockerfilePath, []byte(generatedFile), 0o644); err != nil {
 		return err
 	}
 

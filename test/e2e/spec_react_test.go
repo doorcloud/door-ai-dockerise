@@ -57,12 +57,12 @@ func TestReactSpec(t *testing.T) {
 			]
 		}
 	}`
-	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(pkgJSON), 0o644); err != nil {
 		t.Fatalf("Failed to write package.json: %v", err)
 	}
 
 	// Create src directory
-	if err := os.Mkdir(filepath.Join(dir, "src"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, "src"), 0o755); err != nil {
 		t.Fatalf("Failed to create src directory: %v", err)
 	}
 
@@ -77,7 +77,7 @@ root.render(
     <h1>Hello, World!</h1>
   </React.StrictMode>
 );`
-	if err := os.WriteFile(filepath.Join(dir, "src", "index.js"), []byte(indexJS), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "src", "index.js"), []byte(indexJS), 0o644); err != nil {
 		t.Fatalf("Failed to write index.js: %v", err)
 	}
 
@@ -90,12 +90,12 @@ root.render(
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }`
-	if err := os.WriteFile(filepath.Join(dir, "src", "index.css"), []byte(indexCSS), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "src", "index.css"), []byte(indexCSS), 0o644); err != nil {
 		t.Fatalf("Failed to write index.css: %v", err)
 	}
 
 	// Create public directory
-	if err := os.Mkdir(filepath.Join(dir, "public"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, "public"), 0o755); err != nil {
 		t.Fatalf("Failed to create public directory: %v", err)
 	}
 
@@ -111,7 +111,7 @@ root.render(
     <div id="root"></div>
   </body>
 </html>`
-	if err := os.WriteFile(filepath.Join(dir, "public", "index.html"), []byte(indexHTML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "public", "index.html"), []byte(indexHTML), 0o644); err != nil {
 		t.Fatalf("Failed to write index.html: %v", err)
 	}
 
@@ -126,7 +126,7 @@ COPY . .
 RUN npm run build
 EXPOSE 3000
 CMD ["npm", "start"]`
-	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 		t.Fatalf("Failed to write Dockerfile: %v", err)
 	}
 

@@ -43,7 +43,7 @@ CMD ["npm", "start"]`,
 
 func buildAndRun(t *testing.T, dir string, dockerfile string, ports []string) (string, error) {
 	// Write Dockerfile
-	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 		return "", fmt.Errorf("write Dockerfile: %w", err)
 	}
 

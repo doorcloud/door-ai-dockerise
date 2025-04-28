@@ -26,10 +26,7 @@ func RunPipeline(t *testing.T, sourceDir string) error {
 
 	// Create pipeline with mock components
 	p := pipeline.New(pipeline.Options{
-		Detectors: []core.Detector{
-			detectors.NewReact(),
-			detectors.NewSpringBootDetector(),
-		},
+		Detectors: detectors.Registry(),
 		FactProviders: []core.FactProvider{
 			facts.NewStatic(),
 		},
@@ -113,7 +110,7 @@ func setupTestEnvironment(t *testing.T) (*pipeline.Pipeline, string) {
 
 	// Create pipeline with detectors
 	p := pipeline.New(pipeline.Options{
-		Detectors: detectors.DefaultDetectors(),
+		Detectors: detectors.Registry(),
 		FactProviders: []core.FactProvider{
 			&mockFactProvider{},
 		},

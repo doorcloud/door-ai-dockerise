@@ -90,7 +90,7 @@ func TestE2E_SpringMatrix(t *testing.T) {
 			assert.Contains(t, dockerfile, tt.expected)
 
 			// Write Dockerfile
-			err = os.WriteFile(filepath.Join(tempDir, "Dockerfile"), []byte(dockerfile), 0644)
+			err = os.WriteFile(filepath.Join(tempDir, "Dockerfile"), []byte(dockerfile), 0o644)
 			require.NoError(t, err)
 
 			// Verify Dockerfile

@@ -31,10 +31,7 @@ func main() {
 
 	// Create pipeline
 	p := pipeline.New(cfg,
-		pipeline.WithDetectors(
-			detectors.NewReactDetector(),
-			detectors.NewSpringBootDetector(),
-		),
+		pipeline.WithDetectors(detectors.Registry()...),
 		pipeline.WithFactProviders(
 			facts.NewStatic(),
 		),

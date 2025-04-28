@@ -23,7 +23,7 @@ func (v *SimpleVerifier) Verify(ctx context.Context, repo, dockerfile string, ti
 	defer cancel()
 
 	// Write Dockerfile to repo
-	if err := os.WriteFile(filepath.Join(repo, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 		return err
 	}
 

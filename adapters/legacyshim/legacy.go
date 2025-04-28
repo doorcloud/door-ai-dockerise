@@ -36,7 +36,7 @@ func (w *Wrapper) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) 
 
 		// Create directories
 		if d.IsDir() {
-			return os.MkdirAll(filepath.Join(tmpDir, path), 0755)
+			return os.MkdirAll(filepath.Join(tmpDir, path), 0o755)
 		}
 
 		// Copy files
@@ -45,7 +45,7 @@ func (w *Wrapper) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) 
 			return err
 		}
 
-		return os.WriteFile(filepath.Join(tmpDir, path), data, 0644)
+		return os.WriteFile(filepath.Join(tmpDir, path), data, 0o644)
 	})
 	if err != nil {
 		return core.StackInfo{}, false, err

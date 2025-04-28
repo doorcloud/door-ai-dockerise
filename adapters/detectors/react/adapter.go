@@ -65,7 +65,7 @@ func (d *ReactDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.Log
 
 	hasReactFile := false
 	for _, entry := range entries {
-		if !entry.IsDir() && (strings.HasSuffix(entry.Name(), ".jsx") || strings.HasSuffix(entry.Name(), ".tsx")) {
+		if !entry.IsDir() && (strings.HasSuffix(entry.Name(), ".jsx") || strings.HasSuffix(entry.Name(), ".tsx") || strings.HasSuffix(entry.Name(), ".js")) {
 			content, err := fs.ReadFile(fsys, "src/"+entry.Name())
 			if err != nil {
 				continue

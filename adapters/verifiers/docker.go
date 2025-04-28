@@ -135,7 +135,7 @@ func createBuildContext(path string, dockerfile string) (io.ReadCloser, error) {
 	}
 
 	// Write Dockerfile
-	if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 		os.RemoveAll(tmpDir)
 		return nil, err
 	}

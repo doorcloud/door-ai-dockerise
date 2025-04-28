@@ -19,10 +19,7 @@ func TestPipeline_Run(t *testing.T) {
 
 	// Create pipeline with mock components
 	p := NewPipeline(
-		WithDetectors(
-			detectors.NewReact(),
-			detectors.NewSpringBootDetector(),
-		),
+		WithDetectors(detectors.Registry()...),
 		WithFactProviders(
 			facts.NewStatic(),
 		),
@@ -64,10 +61,7 @@ func TestPipeline_Run_ErrorCases(t *testing.T) {
 
 	// Create pipeline with mock components
 	p := NewPipeline(
-		WithDetectors(
-			detectors.NewReact(),
-			detectors.NewSpringBootDetector(),
-		),
+		WithDetectors(detectors.Registry()...),
 		WithFactProviders(
 			facts.NewStatic(),
 		),
