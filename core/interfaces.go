@@ -33,16 +33,6 @@ type LogSink interface {
 	Log(msg string)
 }
 
-// Detector detects the type of application stack
-type Detector interface {
-	// Detect attempts to detect the stack type in the given filesystem
-	Detect(ctx context.Context, fsys fs.FS, logSink LogSink) (StackInfo, bool, error)
-	// Name returns the name of the detector
-	Name() string
-	// SetLogSink sets the log sink for the detector
-	SetLogSink(logSink LogSink)
-}
-
 // Generator generates a Dockerfile for a given stack
 type Generator interface {
 	Generate(ctx context.Context, facts Facts) (string, error)
@@ -86,6 +76,11 @@ func (c DetectorChain) Detect(ctx context.Context, fsys fs.FS, logSink LogSink) 
 // Name returns the detector chain name
 func (c DetectorChain) Name() string {
 	return "chain"
+}
+
+// Describe returns a description of the detector chain
+func (c DetectorChain) Describe() string {
+	return "Tries each detector in sequence until one matches"
 }
 
 // SetLogSink sets the log sink for all detectors in the chain

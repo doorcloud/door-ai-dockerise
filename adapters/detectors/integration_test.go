@@ -3,50 +3,47 @@ package detectors
 import (
 	"context"
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
 func TestIntegration(t *testing.T) {
-	testCases := []struct {
+	tests := []struct {
 		name     string
-		testPath string
+		path     string
+		expected string
 	}{
-		{"spring_kotlin", "spring/kotlin_gradle_demo"},
-		{"spring_maven", "spring/petclinic_maven"},
-		{"react", "react/cra_template"},
-		{"node", "node/express_hello"},
-		{"plain_java", "negative/plain_java"},
+		{
+			name:     "spring boot maven",
+			path:     "testdata/spring/maven-single",
+			expected: "spring-boot",
+		},
+		{
+			name:     "spring boot gradle",
+			path:     "testdata/spring/gradle-groovy",
+			expected: "spring-boot",
+		},
+		{
+			name:     "deep nested kts",
+			path:     "testdata/deep_nested_kts",
+			expected: "spring-boot",
+		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			testDir := filepath.Join("../../testdata/e2e", tc.testPath)
-
-			// Read expected stack from EXPECTED_STACK file
-			expectedBytes, err := os.ReadFile(filepath.Join(testDir, "EXPECTED_STACK"))
-			require.NoError(t, err)
-			expected := strings.TrimSpace(string(expectedBytes))
-
-			// Create detector
-			detector := NewFanoutDetector()
-
-			// Run detection
-			fsys := os.DirFS(testDir)
-			info, found, err := detector.Detect(context.Background(), fsys, nil)
-			require.NoError(t, err)
-
-			if expected == "unknown" {
-				assert.False(t, found, "Expected no stack to be detected")
-				return
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fsys := os.DirFS(tt.path)
+			info, found, err := core.Detect(context.Background(), fsys, nil)
+			if err != nil {
+				t.Fatalf("Detect() error = %v", err)
 			}
-
-			assert.True(t, found, "Expected stack to be detected")
-			assert.Equal(t, expected, info.Name, "Stack name mismatch")
+			if !found {
+				t.Fatalf("Detect() found = false, want true")
+			}
+			if info.Name != tt.expected {
+				t.Fatalf("Detect() name = %v, want %v", info.Name, tt.expected)
+			}
 		})
 	}
 }

@@ -99,6 +99,11 @@ func (d *ReactDetector) Name() string {
 	return "react"
 }
 
+// Describe returns a description of what the detector looks for
+func (d *ReactDetector) Describe() string {
+	return "Detects React projects by checking for react and react-dom dependencies and React source files"
+}
+
 // SetLogSink sets the log sink for the detector
 func (d *ReactDetector) SetLogSink(logSink core.LogSink) {
 	d.logSink = logSink

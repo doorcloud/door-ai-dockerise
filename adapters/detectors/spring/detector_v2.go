@@ -4,10 +4,15 @@ import (
 	"context"
 	"io/fs"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
+
+const maxDepth = 5
+
+var springGradleRX = regexp.MustCompile(`(?i)org\.springframework\.boot`)
 
 // SpringBootDetectorV2 implements core.Detector for Spring Boot projects
 type SpringBootDetectorV2 struct {
@@ -42,56 +47,51 @@ func (d *SpringBootDetectorV2) Detect(ctx context.Context, fsys fs.FS, logSink c
 
 // detectMaven checks for Maven projects (single and multi-module)
 func (d *SpringBootDetectorV2) detectMaven(fsys fs.FS) (core.StackInfo, bool, error) {
-	// First check for app module
-	appPom, err := fs.ReadFile(fsys, "app/pom.xml")
-	if err == nil {
-		if containsSpringBootV2(string(appPom)) {
-			info := core.StackInfo{
-				Name:          "spring-boot",
-				BuildTool:     "maven",
-				DetectedFiles: []string{"app/pom.xml"},
-			}
-			d.log("detector=spring-boot found=true buildtool=maven multimodule=true")
-			return info, true, nil
+	// Check for parent pom.xml
+	var pomPaths []string
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-	}
-
-	// Then check other modules
-	entries, err := fs.ReadDir(fsys, ".")
+		if d.IsDir() {
+			// Calculate depth by counting path separators
+			depth := strings.Count(path, string(filepath.Separator))
+			if depth > maxDepth {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if filepath.Base(path) == "pom.xml" {
+			pomPaths = append(pomPaths, path)
+		}
+		return nil
+	})
 	if err != nil {
 		return core.StackInfo{}, false, err
 	}
 
-	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == "app" {
-			continue
-		}
-
-		// Check each subdirectory for pom.xml
-		subPom, err := fs.ReadFile(fsys, filepath.Join(entry.Name(), "pom.xml"))
-		if err != nil {
-			continue
-		}
-
-		if containsSpringBootV2(string(subPom)) {
+	// First check for app/pom.xml or application/pom.xml
+	for _, pomPath := range pomPaths {
+		dir := filepath.Dir(pomPath)
+		base := filepath.Base(dir)
+		if (base == "app" || base == "application") && d.isSpringBootMavenModule(fsys, pomPath) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "maven",
-				DetectedFiles: []string{filepath.Join(entry.Name(), "pom.xml")},
+				DetectedFiles: []string{pomPath},
 			}
-			d.log("detector=spring-boot found=true buildtool=maven multimodule=true")
+			d.log("detector=spring-boot found=true buildtool=maven")
 			return info, true, nil
 		}
 	}
 
-	// Finally check root pom.xml
-	pomXML, err := fs.ReadFile(fsys, "pom.xml")
-	if err == nil {
-		if containsSpringBootV2(string(pomXML)) {
+	// Then check other pom.xml files
+	for _, pomPath := range pomPaths {
+		if d.isSpringBootMavenModule(fsys, pomPath) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "maven",
-				DetectedFiles: []string{"pom.xml"},
+				DetectedFiles: []string{pomPath},
 			}
 			d.log("detector=spring-boot found=true buildtool=maven")
 			return info, true, nil
@@ -103,91 +103,54 @@ func (d *SpringBootDetectorV2) detectMaven(fsys fs.FS) (core.StackInfo, bool, er
 
 // detectGradle checks for Gradle projects (Groovy, Kotlin, and multi-module)
 func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, error) {
-	// First check for app module
-	appGradle, err := fs.ReadFile(fsys, "app/build.gradle")
-	if err == nil {
-		if containsSpringBootV2(string(appGradle)) {
-			info := core.StackInfo{
-				Name:          "spring-boot",
-				BuildTool:     "gradle",
-				DetectedFiles: []string{"app/build.gradle"},
-			}
-			d.log("detector=spring-boot found=true buildtool=gradle multimodule=true")
-			return info, true, nil
+	// Check for build.gradle* and settings.gradle*
+	var gradlePaths []string
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
+		if d.IsDir() {
+			// Calculate depth by counting path separators
+			depth := strings.Count(path, string(filepath.Separator))
+			if depth > maxDepth {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		name := filepath.Base(path)
+		if strings.HasPrefix(name, "build.gradle") {
+			gradlePaths = append(gradlePaths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return core.StackInfo{}, false, err
 	}
 
-	appGradleKts, err := fs.ReadFile(fsys, "app/build.gradle.kts")
-	if err == nil {
-		if containsSpringBootV2(string(appGradleKts)) {
+	// First check for app/build.gradle or application/build.gradle
+	for _, gradlePath := range gradlePaths {
+		dir := filepath.Dir(gradlePath)
+		base := filepath.Base(dir)
+		if (base == "app" || base == "application") && d.isSpringBootGradleModule(fsys, gradlePath) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
-				DetectedFiles: []string{"app/build.gradle.kts"},
-			}
-			d.log("detector=spring-boot found=true buildtool=gradle kotlin=true multimodule=true")
-			return info, true, nil
-		}
-	}
-
-	// Then check root build files
-	buildGradle, err := fs.ReadFile(fsys, "build.gradle")
-	if err == nil {
-		if containsSpringBootV2(string(buildGradle)) {
-			info := core.StackInfo{
-				Name:          "spring-boot",
-				BuildTool:     "gradle",
-				DetectedFiles: []string{"build.gradle"},
+				DetectedFiles: []string{gradlePath},
 			}
 			d.log("detector=spring-boot found=true buildtool=gradle")
 			return info, true, nil
 		}
 	}
 
-	buildGradleKts, err := fs.ReadFile(fsys, "build.gradle.kts")
-	if err == nil {
-		if containsSpringBootV2(string(buildGradleKts)) {
+	// Then check other build.gradle files
+	for _, gradlePath := range gradlePaths {
+		if d.isSpringBootGradleModule(fsys, gradlePath) {
 			info := core.StackInfo{
 				Name:          "spring-boot",
 				BuildTool:     "gradle",
-				DetectedFiles: []string{"build.gradle.kts"},
+				DetectedFiles: []string{gradlePath},
 			}
-			d.log("detector=spring-boot found=true buildtool=gradle kotlin=true")
-			return info, true, nil
-		}
-	}
-
-	// Finally check other modules
-	entries, err := fs.ReadDir(fsys, ".")
-	if err != nil {
-		return core.StackInfo{}, false, err
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == "app" {
-			continue
-		}
-
-		// Check each subdirectory for build.gradle or build.gradle.kts
-		subGradle, err := fs.ReadFile(fsys, filepath.Join(entry.Name(), "build.gradle"))
-		if err == nil && containsSpringBootV2(string(subGradle)) {
-			info := core.StackInfo{
-				Name:          "spring-boot",
-				BuildTool:     "gradle",
-				DetectedFiles: []string{filepath.Join(entry.Name(), "build.gradle")},
-			}
-			d.log("detector=spring-boot found=true buildtool=gradle multimodule=true")
-			return info, true, nil
-		}
-
-		subGradleKts, err := fs.ReadFile(fsys, filepath.Join(entry.Name(), "build.gradle.kts"))
-		if err == nil && containsSpringBootV2(string(subGradleKts)) {
-			info := core.StackInfo{
-				Name:          "spring-boot",
-				BuildTool:     "gradle",
-				DetectedFiles: []string{filepath.Join(entry.Name(), "build.gradle.kts")},
-			}
-			d.log("detector=spring-boot found=true buildtool=gradle kotlin=true multimodule=true")
+			d.log("detector=spring-boot found=true buildtool=gradle")
 			return info, true, nil
 		}
 	}
@@ -195,10 +158,60 @@ func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 	return core.StackInfo{}, false, nil
 }
 
-// containsSpringBootV2 checks if the build file contains Spring Boot dependencies
-func containsSpringBootV2(content string) bool {
-	return strings.Contains(content, "org.springframework.boot") ||
-		strings.Contains(content, "spring-boot")
+// isSpringBootMavenModule checks if the pom.xml is a Spring Boot module
+func (d *SpringBootDetectorV2) isSpringBootMavenModule(fsys fs.FS, pomPath string) bool {
+	content, err := fs.ReadFile(fsys, pomPath)
+	if err != nil {
+		return false
+	}
+
+	contentStr := string(content)
+
+	// Must have Spring Boot parent or platform BOM
+	hasParent := strings.Contains(contentStr, "<parent>") &&
+		(strings.Contains(contentStr, "<groupId>org.springframework.boot</groupId>") ||
+			strings.Contains(contentStr, "<groupId>io.spring.platform</groupId>")) &&
+		(strings.Contains(contentStr, "<artifactId>spring-boot-starter-parent</artifactId>") ||
+			strings.Contains(contentStr, "<artifactId>platform-bom</artifactId>"))
+
+	// Must have Spring Boot plugin
+	hasPlugin := strings.Contains(contentStr, "<groupId>org.springframework.boot</groupId>") &&
+		strings.Contains(contentStr, "<artifactId>spring-boot-maven-plugin</artifactId>")
+
+	// Must have Spring Boot starter dependencies
+	hasStarter := strings.Contains(contentStr, "<artifactId>spring-boot-starter-web</artifactId>") ||
+		strings.Contains(contentStr, "<artifactId>spring-boot-starter-actuator</artifactId>") ||
+		strings.Contains(contentStr, "<artifactId>spring-boot-starter-webflux</artifactId>") ||
+		strings.Contains(contentStr, "<artifactId>spring-boot-starter-data-jpa</artifactId>")
+
+	// For modules, we need either:
+	// 1. Spring Boot parent + starter dependencies, or
+	// 2. Spring Boot plugin + starter dependencies
+	return (hasParent || hasPlugin) && hasStarter
+}
+
+// isSpringBootGradleModule checks if the build.gradle file is a Spring Boot module
+func (d *SpringBootDetectorV2) isSpringBootGradleModule(fsys fs.FS, gradlePath string) bool {
+	content, err := fs.ReadFile(fsys, gradlePath)
+	if err != nil {
+		return false
+	}
+
+	contentStr := string(content)
+
+	// Must have Spring Boot plugin
+	hasPlugin := strings.Contains(contentStr, "org.springframework.boot") &&
+		(strings.Contains(contentStr, "id 'org.springframework.boot'") ||
+			strings.Contains(contentStr, "id(\"org.springframework.boot\")"))
+
+	// Must have Spring Boot starter dependencies
+	hasStarter := strings.Contains(contentStr, "spring-boot-starter-web") ||
+		strings.Contains(contentStr, "spring-boot-starter-actuator") ||
+		strings.Contains(contentStr, "spring-boot-starter-webflux") ||
+		strings.Contains(contentStr, "spring-boot-starter-data-jpa")
+
+	// For modules, we need both plugin and starter dependencies
+	return hasPlugin && hasStarter
 }
 
 // log sends a message to the log sink if available
@@ -211,6 +224,11 @@ func (d *SpringBootDetectorV2) log(msg string) {
 // Name returns the detector name
 func (d *SpringBootDetectorV2) Name() string {
 	return "spring-boot"
+}
+
+// Describe returns a description of what the detector looks for
+func (d *SpringBootDetectorV2) Describe() string {
+	return "Detects Spring Boot projects by checking for Spring Boot dependencies and plugins in Maven or Gradle build files"
 }
 
 // SetLogSink sets the log sink for the detector

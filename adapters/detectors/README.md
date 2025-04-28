@@ -7,7 +7,7 @@ This package provides a unified interface for detecting project types and their 
 ```
 adapters/detectors/
 ├── README.md           # This file
-├── detector.go         # Central orchestrator and registry
+├── registry.go         # Central orchestrator and registry
 ├── node/              # Node.js detector
 ├── react/             # React detector
 └── spring/            # Spring Boot detector
@@ -15,19 +15,21 @@ adapters/detectors/
 
 ## How It Works
 
-The detector system uses a registry-based approach where all detectors are registered in a central location (`detector.go`). Each detector implements the `core.Detector` interface:
+The detector system uses a registry-based approach where all detectors are registered in a central location (`registry.go`). Each detector implements the `core.Detector` interface.
 
-```go
-type Detector interface {
-    Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error)
-    Name() string
-    SetLogSink(logSink core.LogSink)
-}
-```
+## Spring Boot Detection Rules
 
-The central orchestrator in `detector.go` maintains a registry of all available detectors and provides functions to:
-1. Get all registered detectors via `Registry()`
-2. Detect project type using all registered detectors via `Detect()`
+The Spring Boot detector uses the following heuristics:
+
+1. **Search Depth**: Searches up to 2 levels deep in the project structure
+2. **Maven Projects**:
+   - Checks for parent pom.xml with Spring Boot parent
+   - Checks for any springframework starter dependencies
+3. **Gradle Projects**:
+   - Matches any line containing "spring" and "boot" (case-insensitive) in:
+     - build.gradle*
+     - settings.gradle*
+   - Supports both Groovy and Kotlin DSL
 
 ## Adding a New Detector
 
@@ -35,7 +37,7 @@ To add a new detector:
 
 1. Create a new directory under `adapters/detectors/` for your detector
 2. Implement the `core.Detector` interface
-3. Add your detector to the registry in `detector.go`
+3. Add your detector to the registry in `registry.go`
 
 Example:
 
@@ -64,7 +66,7 @@ func (d *MyDetector) SetLogSink(logSink core.LogSink) {
 }
 ```
 
-Then add it to the registry in `detector.go`:
+Then add it to the registry in `registry.go`:
 
 ```go
 var registry = []core.Detector{

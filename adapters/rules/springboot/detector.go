@@ -24,6 +24,11 @@ func (d *SpringBootDetector) Name() string {
 	return "springboot"
 }
 
+// Describe returns a description of what the detector looks for
+func (d *SpringBootDetector) Describe() string {
+	return "Detects Spring Boot projects by checking for Spring Boot dependencies in Maven or Gradle build files"
+}
+
 // SetLogSink sets the log sink for the detector
 func (d *SpringBootDetector) SetLogSink(logSink core.LogSink) {
 	d.logSink = logSink

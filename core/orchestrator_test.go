@@ -27,6 +27,10 @@ func (d *mockDetector) Name() string {
 	return "mock"
 }
 
+func (d *mockDetector) Describe() string {
+	return "Mock detector for testing"
+}
+
 func (d *mockDetector) SetLogSink(logSink LogSink) {
 	d.logSink = logSink
 }

@@ -20,6 +20,17 @@ func IsSpringBoot(path string) bool {
 		"application/pom.xml",
 		"web/pom.xml",
 		"app/pom.xml",
+		"api/pom.xml",
+	}
+
+	// For Gradle multi-module projects
+	gradleModules := []string{
+		"app/build.gradle",
+		"api/build.gradle",
+		"web/build.gradle",
+		"app/build.gradle.kts",
+		"api/build.gradle.kts",
+		"web/build.gradle.kts",
 	}
 
 	// First check the root build files
@@ -31,8 +42,14 @@ func IsSpringBoot(path string) bool {
 			}
 
 			contentStr := string(content)
-			if isRootSpringBootProject(contentStr) {
-				return true
+			if strings.HasSuffix(file, ".xml") {
+				if isSpringBootMavenModule(contentStr) {
+					return true
+				}
+			} else {
+				if isSpringBootGradleModule(contentStr) {
+					return true
+				}
 			}
 		}
 	}
@@ -46,7 +63,22 @@ func IsSpringBoot(path string) bool {
 			}
 
 			contentStr := string(content)
-			if isSpringBootModule(contentStr) {
+			if isSpringBootMavenModule(contentStr) {
+				return true
+			}
+		}
+	}
+
+	// Then check Gradle module build files
+	for _, file := range gradleModules {
+		if _, err := os.Stat(filepath.Join(path, file)); err == nil {
+			content, err := os.ReadFile(filepath.Join(path, file))
+			if err != nil {
+				continue
+			}
+
+			contentStr := string(content)
+			if isSpringBootGradleModule(contentStr) {
 				return true
 			}
 		}
@@ -55,8 +87,8 @@ func IsSpringBoot(path string) bool {
 	return false
 }
 
-// isRootSpringBootProject checks if the root project is a Spring Boot project
-func isRootSpringBootProject(content string) bool {
+// isSpringBootMavenModule checks if the pom.xml is a Spring Boot module
+func isSpringBootMavenModule(content string) bool {
 	// Must have Spring Boot parent or platform BOM
 	hasParent := strings.Contains(content, "<parent>") &&
 		(strings.Contains(content, "<groupId>org.springframework.boot</groupId>") ||
@@ -65,40 +97,31 @@ func isRootSpringBootProject(content string) bool {
 			strings.Contains(content, "<artifactId>platform-bom</artifactId>"))
 
 	// Must have Spring Boot plugin
-	hasPlugin := strings.Contains(content, "id 'org.springframework.boot'") ||
-		strings.Contains(content, "id(\"org.springframework.boot\")") ||
-		(strings.Contains(content, "<groupId>org.springframework.boot</groupId>") &&
-			strings.Contains(content, "<artifactId>spring-boot-maven-plugin</artifactId>"))
+	hasPlugin := strings.Contains(content, "<groupId>org.springframework.boot</groupId>") &&
+		strings.Contains(content, "<artifactId>spring-boot-maven-plugin</artifactId>")
 
 	// Must have Spring Boot starter dependencies
 	hasStarter := strings.Contains(content, "<artifactId>spring-boot-starter-web</artifactId>") ||
 		strings.Contains(content, "<artifactId>spring-boot-starter-actuator</artifactId>") ||
-		strings.Contains(content, "<artifactId>spring-boot-starter-webflux</artifactId>") ||
-		strings.Contains(content, "org.springframework.boot:spring-boot-starter-web:") ||
-		strings.Contains(content, "org.springframework.boot:spring-boot-starter-actuator:") ||
-		strings.Contains(content, "org.springframework.boot:spring-boot-starter-webflux:")
+		strings.Contains(content, "<artifactId>spring-boot-starter-webflux</artifactId>")
 
-	// For root projects, we need either:
+	// For modules, we need either:
 	// 1. Spring Boot parent + starter dependencies, or
 	// 2. Spring Boot plugin + starter dependencies
 	return (hasParent || hasPlugin) && hasStarter
 }
 
-// isSpringBootModule checks if a module is a Spring Boot module
-func isSpringBootModule(content string) bool {
+// isSpringBootGradleModule checks if the build.gradle file is a Spring Boot module
+func isSpringBootGradleModule(content string) bool {
 	// Must have Spring Boot plugin
-	hasPlugin := strings.Contains(content, "id 'org.springframework.boot'") ||
-		strings.Contains(content, "id(\"org.springframework.boot\")") ||
-		(strings.Contains(content, "<groupId>org.springframework.boot</groupId>") &&
-			strings.Contains(content, "<artifactId>spring-boot-maven-plugin</artifactId>"))
+	hasPlugin := strings.Contains(content, "org.springframework.boot") &&
+		(strings.Contains(content, "id 'org.springframework.boot'") ||
+			strings.Contains(content, "id(\"org.springframework.boot\")"))
 
 	// Must have Spring Boot starter dependencies
-	hasStarter := strings.Contains(content, "<artifactId>spring-boot-starter-web</artifactId>") ||
-		strings.Contains(content, "<artifactId>spring-boot-starter-actuator</artifactId>") ||
-		strings.Contains(content, "<artifactId>spring-boot-starter-webflux</artifactId>") ||
-		strings.Contains(content, "org.springframework.boot:spring-boot-starter-web:") ||
-		strings.Contains(content, "org.springframework.boot:spring-boot-starter-actuator:") ||
-		strings.Contains(content, "org.springframework.boot:spring-boot-starter-webflux:")
+	hasStarter := strings.Contains(content, "spring-boot-starter-web") ||
+		strings.Contains(content, "spring-boot-starter-actuator") ||
+		strings.Contains(content, "spring-boot-starter-webflux")
 
 	// For modules, we need both plugin and starter dependencies
 	return hasPlugin && hasStarter
