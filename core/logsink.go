@@ -19,3 +19,11 @@ func (s *StringLogSink) Log(msg string) {
 func (s *StringLogSink) String() string {
 	return s.builder.String()
 }
+
+// NullLogSink is a log sink that discards all logs
+type NullLogSink struct{}
+
+// Log implements the LogSink interface
+func (n *NullLogSink) Log(msg string) {
+	// Discard the message
+}

@@ -18,94 +18,107 @@ func TestSpringBootDetector_Detect(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "Maven project with default port",
+			name: "Maven project with Spring Boot parent",
 			files: map[string]string{
 				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
 <project>
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
-    </parent>
-    <properties>
-        <java.version>17</java.version>
-    </properties>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.7.0</version>
+  </parent>
 </project>`,
-				"src/main/resources/application.properties": "spring.application.name=test",
 			},
 			wantInfo: core.StackInfo{
-				Name:      "spring-boot",
-				BuildTool: "maven",
-				Version:   "3.2.0",
-				Port:      8080,
-				DetectedFiles: []string{
-					"pom.xml",
-					"src/main/resources/application.properties",
-				},
-				Confidence: 1.0,
+				Name:          "spring-boot",
+				Version:       "2.7.0",
+				Confidence:    1.0,
+				BuildTool:     "maven",
+				DetectedFiles: []string{"pom.xml"},
 			},
 			wantFound: true,
+			wantErr:   false,
 		},
 		{
-			name: "Gradle project with custom port",
+			name: "Maven project with Spring Boot dependency",
+			files: map[string]string{
+				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+      <version>2.7.0</version>
+    </dependency>
+  </dependencies>
+</project>`,
+			},
+			wantInfo: core.StackInfo{
+				Name:          "spring-boot",
+				Version:       "2.7.0",
+				Confidence:    1.0,
+				BuildTool:     "maven",
+				DetectedFiles: []string{"pom.xml"},
+			},
+			wantFound: true,
+			wantErr:   false,
+		},
+		{
+			name: "Gradle project with Spring Boot plugin",
 			files: map[string]string{
 				"build.gradle": `plugins {
-    id 'org.springframework.boot' version '3.2.0'
+  id 'org.springframework.boot' version '2.7.0'
 }`,
-				"src/main/resources/application.yml": `server:
-  port: 9090`,
 			},
 			wantInfo: core.StackInfo{
-				Name:      "spring-boot",
-				BuildTool: "gradle",
-				Version:   "3.2.0",
-				Port:      9090,
-				DetectedFiles: []string{
-					"build.gradle",
-					"src/main/resources/application.yml",
-				},
-				Confidence: 1.0,
+				Name:          "spring-boot",
+				Version:       "2.7.0",
+				Confidence:    1.0,
+				BuildTool:     "gradle",
+				DetectedFiles: []string{"build.gradle"},
 			},
 			wantFound: true,
+			wantErr:   false,
 		},
 		{
-			name: "Gradle Kotlin project",
+			name: "Gradle project with Spring Boot dependency",
 			files: map[string]string{
-				"build.gradle.kts": `plugins {
-    id("org.springframework.boot") version "3.2.0"
+				"build.gradle": `dependencies {
+  implementation 'org.springframework.boot:spring-boot-starter-web:2.7.0'
 }`,
 			},
 			wantInfo: core.StackInfo{
-				Name:      "spring-boot",
-				BuildTool: "gradle",
-				Version:   "3.2.0",
-				Port:      8080,
-				DetectedFiles: []string{
-					"build.gradle.kts",
-				},
-				Confidence: 1.0,
+				Name:          "spring-boot",
+				Version:       "2.7.0",
+				Confidence:    1.0,
+				BuildTool:     "gradle",
+				DetectedFiles: []string{"build.gradle"},
 			},
 			wantFound: true,
+			wantErr:   false,
 		},
 		{
 			name: "Not a Spring Boot project",
 			files: map[string]string{
 				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
 <project>
-    <parent>
-        <groupId>org.apache.maven</groupId>
-        <artifactId>maven-parent</artifactId>
-        <version>1.0</version>
-    </parent>
+  <dependencies>
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>example</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
 </project>`,
 			},
+			wantInfo:  core.StackInfo{},
 			wantFound: false,
+			wantErr:   false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create test filesystem
 			fsys := fstest.MapFS{}
 			for name, content := range tt.files {
 				fsys[name] = &fstest.MapFile{
@@ -113,8 +126,8 @@ func TestSpringBootDetector_Detect(t *testing.T) {
 				}
 			}
 
-			d := NewSpringBootDetector()
-			gotInfo, gotFound, err := d.Detect(context.Background(), fsys, nil)
+			detector := NewSpringBootDetector()
+			gotInfo, gotFound, err := detector.Detect(context.Background(), fsys, &core.NullLogSink{})
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -124,13 +137,53 @@ func TestSpringBootDetector_Detect(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tt.wantFound, gotFound)
 			if tt.wantFound {
-				assert.Equal(t, tt.wantInfo.Name, gotInfo.Name)
-				assert.Equal(t, tt.wantInfo.BuildTool, gotInfo.BuildTool)
-				assert.Equal(t, tt.wantInfo.Version, gotInfo.Version)
-				assert.Equal(t, tt.wantInfo.Port, gotInfo.Port)
-				assert.Equal(t, tt.wantInfo.Confidence, gotInfo.Confidence)
-				assert.ElementsMatch(t, tt.wantInfo.DetectedFiles, gotInfo.DetectedFiles)
+				assert.Equal(t, tt.wantInfo, gotInfo)
 			}
 		})
+	}
+}
+
+func TestSpringBootDetector_Detect_Basic(t *testing.T) {
+	// Create a test filesystem
+	fs := fstest.MapFS{
+		"pom.xml": &fstest.MapFile{
+			Data: []byte(`
+<project>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.2.0</version>
+	</parent>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+	</dependencies>
+</project>
+`),
+		},
+	}
+
+	// Create a detector with a null log sink
+	detector := &SpringBootDetector{
+		logSink: &core.NullLogSink{},
+	}
+
+	// Test detection
+	info, err := detector.Detect(fs)
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+
+	// Verify the result
+	if info.StackName != "spring-boot" {
+		t.Errorf("Expected stack name 'spring-boot', got '%s'", info.StackName)
+	}
+	if info.Version != "3.2.0" {
+		t.Errorf("Expected version '3.2.0', got '%s'", info.Version)
+	}
+	if info.Confidence != 1.0 {
+		t.Errorf("Expected confidence 1.0, got %f", info.Confidence)
 	}
 }

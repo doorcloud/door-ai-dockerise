@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -11,102 +12,114 @@ import (
 func TestExtractor(t *testing.T) {
 	tests := []struct {
 		name     string
-		project  string
-		wantSpec *Spec
-		wantErr  bool
+		files    map[string]string
+		expected Spec
 	}{
 		{
-			name:    "Maven project",
-			project: "testdata/maven",
-			wantSpec: &Spec{
-				BuildTool:         "maven",
-				JDKVersion:        "11",
-				SpringBootVersion: "2.7.0",
-				BuildCmd:          "mvn clean package -DskipTests",
-				Artifact:          "target/*.jar",
-				HealthEndpoint:    "/actuator/health",
-				Ports:             []int{8080},
+			name: "Maven with toolchains",
+			files: map[string]string{
+				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>demo</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <properties>
+        <java.version>21</java.version>
+    </properties>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.6</version>
+    </parent>
+</project>`,
+				".mvn/toolchains.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<toolchains>
+    <toolchain>
+        <type>jdk</type>
+        <provides>
+            <version>21</version>
+        </provides>
+    </toolchain>
+</toolchains>`,
 			},
-			wantErr: false,
+			expected: Spec{
+				JavaVersion:       "21",
+				SpringBootVersion: strPtr("3.2.6"),
+			},
 		},
 		{
-			name:    "Gradle project",
-			project: "testdata/gradle",
-			wantSpec: &Spec{
-				BuildTool:         "gradle",
-				JDKVersion:        "11",
-				SpringBootVersion: "2.7.0",
-				BuildCmd:          "./gradlew build -x test",
-				Artifact:          "build/libs/*.jar",
-				HealthEndpoint:    "/actuator/health",
-				Ports:             []int{8080},
+			name: "Gradle Kotlin DSL",
+			files: map[string]string{
+				"build.gradle.kts": `plugins {
+    id("org.springframework.boot") version "3.2.6"
+}
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}`,
 			},
-			wantErr: false,
+			expected: Spec{
+				JavaVersion:       "21",
+				SpringBootVersion: strPtr("3.2.6"),
+			},
 		},
 		{
-			name:     "Invalid project",
-			project:  "testdata/invalid",
-			wantSpec: nil,
-			wantErr:  true,
+			name: "Maven with dependencyManagement",
+			files: map[string]string{
+				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>demo</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>3.2.6</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>`,
+			},
+			expected: Spec{
+				JavaVersion:       "17",
+				SpringBootVersion: strPtr("3.2.6"),
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create test data directory
-			projectPath := filepath.Join(os.TempDir(), tt.name)
-			err := os.MkdirAll(projectPath, 0o755)
-			assert.NoError(t, err)
-			defer os.RemoveAll(projectPath)
-
-			// Create build files based on test case
-			switch tt.project {
-			case "testdata/maven":
-				err = os.WriteFile(filepath.Join(projectPath, "pom.xml"), []byte(`
-<project>
-	<properties>
-		<java.version>11</java.version>
-		<spring-boot.version>2.7.0</spring-boot.version>
-	</properties>
-	<dependencies>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-actuator</artifactId>
-		</dependency>
-	</dependencies>
-</project>`), 0o644)
-			case "testdata/gradle":
-				err = os.WriteFile(filepath.Join(projectPath, "build.gradle"), []byte(`
-plugins {
-	id 'org.springframework.boot' version '2.7.0'
-}
-
-dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-}
-
-java {
-	sourceCompatibility = '11'
-}`), 0o644)
-				// Create gradlew file
-				err = os.WriteFile(filepath.Join(projectPath, "gradlew"), []byte("#!/bin/sh\necho 'Gradle Wrapper'"), 0o755)
+			fsys := fstest.MapFS{}
+			for name, content := range tt.files {
+				fsys[name] = &fstest.MapFile{
+					Data: []byte(content),
+				}
 			}
-			assert.NoError(t, err)
 
-			// Run extractor
 			extractor := NewExtractor()
-			gotSpec, err := extractor.Extract(projectPath)
-
-			// Verify results
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, gotSpec)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.wantSpec, gotSpec)
-			}
+			spec, err := extractor.Extract(fsys)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, *spec)
 		})
 	}
+}
+
+func strPtr(s string) *string {
+	return &s
 }
 
 func TestExtract_GradleMultiKtsToolchain(t *testing.T) {

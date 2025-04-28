@@ -3,7 +3,6 @@ package spring
 import (
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -11,14 +10,15 @@ import (
 
 // Spec represents Spring Boot project configuration
 type Spec struct {
-	BuildTool         string `yaml:"build_tool"`
-	JDKVersion        string `yaml:"jdk_version"`
-	SpringBootVersion string `yaml:"spring_boot_version"`
-	BuildCmd          string `yaml:"build_cmd"`
-	Artifact          string `yaml:"artifact"`
-	HealthEndpoint    string `yaml:"health_endpoint"`
-	Ports             []int  `yaml:"ports"`
+	BuildTool         string  `yaml:"build_tool"`
+	JDKVersion        string  `yaml:"jdk_version"`
+	SpringBootVersion *string `yaml:"spring_boot_version,omitempty"`
+	BuildCmd          string  `yaml:"build_cmd"`
+	Artifact          string  `yaml:"artifact"`
+	HealthEndpoint    string  `yaml:"health_endpoint"`
+	Ports             []int   `yaml:"ports"`
 	Metadata          map[string]string
+	JavaVersion       string `yaml:"java_version"`
 }
 
 // Extractor extracts Spring Boot project facts
@@ -30,8 +30,24 @@ func NewExtractor() *Extractor {
 }
 
 // Extract extracts Spring Boot project facts from the given path
-func (e *Extractor) Extract(path string) (*Spec, error) {
-	fsys := os.DirFS(path)
+func (e *Extractor) Extract(fsys fs.FS) (*Spec, error) {
+	spec := &Spec{}
+
+	// Extract Java version
+	javaVersion, err := e.extractJavaVersion(fsys)
+	if err != nil {
+		return nil, err
+	}
+	spec.JavaVersion = javaVersion
+
+	// Extract Spring Boot version
+	springBootVersion, err := e.extractSpringBootVersion(fsys)
+	if err != nil {
+		return nil, err
+	}
+	if springBootVersion != "" {
+		spec.SpringBootVersion = &springBootVersion
+	}
 
 	// Determine build tool
 	buildTool, err := e.detectBuildTool(fsys)
@@ -46,9 +62,7 @@ func (e *Extractor) Extract(path string) (*Spec, error) {
 	}
 
 	// Extract facts from build file
-	spec := &Spec{
-		BuildTool: buildTool,
-	}
+	spec.BuildTool = buildTool
 
 	// Extract ports and health endpoint
 	ports, healthEndpoint, err := e.detectPortsAndHealth(fsys)
@@ -82,7 +96,7 @@ func (e *Extractor) Extract(path string) (*Spec, error) {
 	}
 
 	// Detect SBOM path
-	if sbomPath, err := e.detectSBOMPath(path, buildTool); err == nil && sbomPath != "" {
+	if sbomPath, err := e.detectSBOMPath(fsys, buildTool); err == nil && sbomPath != "" {
 		if spec.Metadata == nil {
 			spec.Metadata = make(map[string]string)
 		}
@@ -166,81 +180,14 @@ func (e *Extractor) extractJDKVersionFromToolchain(fsys fs.FS, buildTool string)
 }
 
 // extractSpringBootVersion extracts Spring Boot version from various sources
-func (e *Extractor) extractSpringBootVersion(fsys fs.FS, buildTool string, content string) (string, error) {
-	switch buildTool {
-	case "maven":
-		// Try direct version property
-		if idx := strings.Index(content, "<spring-boot.version>"); idx != -1 {
-			start := idx + len("<spring-boot.version>")
-			end := strings.Index(content[start:], "<")
-			if end != -1 {
-				return content[start : start+end], nil
-			}
-		}
-
-		// Try parent version
-		if idx := strings.Index(content, "<parent>"); idx != -1 {
-			parentContent := content[idx:]
-			if groupIdx := strings.Index(parentContent, "<groupId>org.springframework.boot</groupId>"); groupIdx != -1 {
-				if versionIdx := strings.Index(parentContent[groupIdx:], "<version>"); versionIdx != -1 {
-					start := groupIdx + versionIdx + len("<version>")
-					end := strings.Index(parentContent[start:], "<")
-					if end != -1 {
-						return parentContent[start : start+end], nil
-					}
-				}
-			}
-		}
-
-		// Try dependencyManagement
-		if idx := strings.Index(content, "<dependencyManagement>"); idx != -1 {
-			depsContent := content[idx:]
-			if groupIdx := strings.Index(depsContent, "<groupId>org.springframework.boot</groupId>"); groupIdx != -1 {
-				if artifactIdx := strings.Index(depsContent[groupIdx:], "<artifactId>spring-boot-dependencies</artifactId>"); artifactIdx != -1 {
-					if versionIdx := strings.Index(depsContent[groupIdx+artifactIdx:], "<version>"); versionIdx != -1 {
-						start := groupIdx + artifactIdx + versionIdx + len("<version>")
-						end := strings.Index(depsContent[start:], "<")
-						if end != -1 {
-							return depsContent[start : start+end], nil
-						}
-					}
-				}
-			}
-		}
-
-	case "gradle":
-		// Try direct version
-		patterns := []string{
-			"springBootVersion = '",
-			"id 'org.springframework.boot' version '",
-			"id(\"org.springframework.boot\") version \"",
-		}
-
-		for _, pattern := range patterns {
-			if idx := strings.Index(content, pattern); idx != -1 {
-				start := idx + len(pattern)
-				end := strings.Index(content[start:], "'")
-				if end == -1 {
-					end = strings.Index(content[start:], "\"")
-				}
-				if end != -1 {
-					return content[start : start+end], nil
-				}
-			}
-		}
-
-		// Try libs.versions.toml
-		if tomlContent, err := fs.ReadFile(fsys, "gradle/libs.versions.toml"); err == nil {
-			if idx := strings.Index(string(tomlContent), "spring-boot = \""); idx != -1 {
-				start := idx + len("spring-boot = \"")
-				end := strings.Index(string(tomlContent[start:]), "\"")
-				if end != -1 {
-					return string(tomlContent[start : start+end]), nil
-				}
-			}
-		}
+func (e *Extractor) extractSpringBootVersion(fsys fs.FS) (string, error) {
+	version, err := ExtractSpringBootVersion(fsys)
+	if err != nil {
+		return "", err
 	}
-
+	if version != nil {
+		return *version, nil
+	}
 	return "", nil
 }
 
@@ -278,8 +225,8 @@ func (e *Extractor) detectBuildCommand(fsys fs.FS, buildTool string, artifactPat
 // extractMavenFacts extracts facts from Maven build file
 func (e *Extractor) extractMavenFacts(fsys fs.FS, content string, spec *Spec) error {
 	// Extract Spring Boot version
-	if version, err := e.extractSpringBootVersion(fsys, "maven", content); err == nil && version != "" {
-		spec.SpringBootVersion = version
+	if version, err := e.extractSpringBootVersion(fsys); err == nil && version != "" {
+		spec.SpringBootVersion = &version
 	}
 
 	// Extract Java version
@@ -307,8 +254,8 @@ func (e *Extractor) extractMavenFacts(fsys fs.FS, content string, spec *Spec) er
 // extractGradleFacts extracts facts from Gradle build file
 func (e *Extractor) extractGradleFacts(fsys fs.FS, content string, spec *Spec) error {
 	// Extract Spring Boot version
-	if version, err := e.extractSpringBootVersion(fsys, "gradle", content); err == nil && version != "" {
-		spec.SpringBootVersion = version
+	if version, err := e.extractSpringBootVersion(fsys); err == nil && version != "" {
+		spec.SpringBootVersion = &version
 	}
 
 	// Extract Java version
@@ -455,16 +402,16 @@ func (e *Extractor) detectPortsAndHealth(fsys fs.FS) ([]int, string, error) {
 }
 
 // detectSBOMPath detects the SBOM file path
-func (e *Extractor) detectSBOMPath(projectPath string, buildTool string) (string, error) {
+func (e *Extractor) detectSBOMPath(fsys fs.FS, buildTool string) (string, error) {
 	var sbomPaths []string
 	if buildTool == "maven" {
 		sbomPaths = []string{
-			filepath.Join(projectPath, "target", "bom.cdx.json"),
-			filepath.Join(projectPath, "target", "*.cdx.json"),
+			filepath.Join("target", "bom.cdx.json"),
+			filepath.Join("target", "*.cdx.json"),
 		}
 	} else {
 		sbomPaths = []string{
-			filepath.Join(projectPath, "build", "reports", "bom.cdx.json"),
+			filepath.Join("build", "reports", "bom.cdx.json"),
 		}
 	}
 
@@ -478,4 +425,9 @@ func (e *Extractor) detectSBOMPath(projectPath string, buildTool string) (string
 		}
 	}
 	return "", nil
+}
+
+// extractJavaVersion extracts Java version from various sources
+func (e *Extractor) extractJavaVersion(fsys fs.FS) (string, error) {
+	return ExtractJavaVersion(fsys)
 }
