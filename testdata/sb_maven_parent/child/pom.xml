@@ -8,26 +8,13 @@
         <artifactId>parent</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
-    <artifactId>app</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-    <n>app</n>
-    <description>Spring Boot App Module</description>
+    <artifactId>child</artifactId>
+    <name>child</name>
+    <description>Spring Boot Child Module</description>
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
     </dependencies>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
 </project> 

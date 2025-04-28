@@ -60,11 +60,13 @@ type Pipeline struct {
 	generator     generate.Generator
 	dockerDriver  dockerdriver.Driver
 	cfg           *config.Config
+	confidenceMin float64
 }
 
 func New(cfg *config.Config, opts ...Option) *Pipeline {
 	p := &Pipeline{
-		cfg: cfg,
+		cfg:           cfg,
+		confidenceMin: 0.5, // Default minimum confidence
 	}
 
 	for _, opt := range opts {
@@ -72,6 +74,10 @@ func New(cfg *config.Config, opts ...Option) *Pipeline {
 	}
 
 	return p
+}
+
+func (p *Pipeline) SetConfidenceThreshold(threshold float64) {
+	p.confidenceMin = threshold
 }
 
 func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) error {
@@ -96,6 +102,10 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) e
 	}
 	if !detected {
 		return ErrNoDetectorMatch
+	}
+
+	if stackInfo.Confidence < p.confidenceMin {
+		return fmt.Errorf("detection confidence %f below threshold %f", stackInfo.Confidence, p.confidenceMin)
 	}
 
 	// When stack is spring-boot, extract facts and use them in the prompt
