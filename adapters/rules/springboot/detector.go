@@ -12,10 +12,9 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/core"
 )
 
-// SpringBootDetector implements detection rules for Spring Boot projects
+// SpringBootDetector implements the core.Detector interface for Spring Boot projects
 type SpringBootDetector struct {
 	logSink core.LogSink
-	fsys    fs.FS
 }
 
 // NewSpringBootDetector creates a new Spring Boot detector
@@ -67,12 +66,11 @@ type Dependency struct {
 // Detect checks if the given filesystem contains a Spring Boot project
 func (d *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
 	d.logSink = logSink
-	d.fsys = fsys
 
 	// Try Maven first
 	pomFile := "pom.xml"
-	if _, err := fs.Stat(d.fsys, pomFile); err == nil {
-		f, err := d.fsys.Open(pomFile)
+	if _, err := fs.Stat(fsys, pomFile); err == nil {
+		f, err := fsys.Open(pomFile)
 		if err != nil {
 			return core.StackInfo{}, false, err
 		}
@@ -90,7 +88,7 @@ func (d *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS, logSink cor
 			if version == "" {
 				// If version not found in current pom, try parent pom
 				parentPomPath := "../pom.xml"
-				if pf, err := d.fsys.Open(parentPomPath); err == nil {
+				if pf, err := fsys.Open(parentPomPath); err == nil {
 					defer pf.Close()
 					var parentProject MavenProject
 					if err := xml.NewDecoder(pf).Decode(&parentProject); err == nil {
@@ -115,8 +113,8 @@ func (d *SpringBootDetector) Detect(ctx context.Context, fsys fs.FS, logSink cor
 	// Try Gradle next
 	gradleFiles := []string{"build.gradle", "build.gradle.kts"}
 	for _, gradleFile := range gradleFiles {
-		if _, err := fs.Stat(d.fsys, gradleFile); err == nil {
-			f, err := d.fsys.Open(gradleFile)
+		if _, err := fs.Stat(fsys, gradleFile); err == nil {
+			f, err := fsys.Open(gradleFile)
 			if err != nil {
 				return core.StackInfo{}, false, err
 			}
