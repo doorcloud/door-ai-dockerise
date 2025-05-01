@@ -1,6 +1,7 @@
 package spring
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"reflect"
@@ -218,7 +219,11 @@ public class Application {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			detector := NewSpringBootDetectorV3()
-			got, ok := detector.Detect(tt.fsys)
+			got, ok, err := detector.Detect(context.Background(), tt.fsys, nil)
+			if err != nil {
+				t.Errorf("SpringBootDetectorV3.Detect() error = %v", err)
+				return
+			}
 			if ok != tt.wantOk {
 				t.Errorf("SpringBootDetectorV3.Detect() ok = %v, want %v", ok, tt.wantOk)
 				return
@@ -310,7 +315,7 @@ func BenchmarkDetect(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, fsys := range fsystems {
-			detector.Detect(fsys)
+			detector.Detect(context.Background(), fsys, nil)
 		}
 	}
 }
@@ -452,7 +457,11 @@ dependencies {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			detector := NewSpringBootDetectorV3()
-			_, got := detector.Detect(tt.fsys)
+			_, got, err := detector.Detect(context.Background(), tt.fsys, nil)
+			if err != nil {
+				t.Errorf("IsSpringBoot() error = %v", err)
+				return
+			}
 			if got != tt.want {
 				t.Errorf("IsSpringBoot() = %v, want %v", got, tt.want)
 			}
@@ -509,7 +518,11 @@ func TestDetectSpringBootRepos(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			detector := NewSpringBootDetectorV3()
-			_, got := detector.Detect(tt.fsys)
+			_, got, err := detector.Detect(context.Background(), tt.fsys, nil)
+			if err != nil {
+				t.Errorf("DetectSpringBootRepos() error = %v", err)
+				return
+			}
 			if got != tt.want {
 				t.Errorf("DetectSpringBootRepos() = %v, want %v", got, tt.want)
 			}
@@ -566,7 +579,11 @@ func TestDetectSpringBootRepos_Integration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			detector := NewSpringBootDetectorV3()
-			_, got := detector.Detect(tt.fsys)
+			_, got, err := detector.Detect(context.Background(), tt.fsys, nil)
+			if err != nil {
+				t.Errorf("DetectSpringBootRepos_Integration() error = %v", err)
+				return
+			}
 			if got != tt.want {
 				t.Errorf("DetectSpringBootRepos_Integration() = %v, want %v", got, tt.want)
 			}

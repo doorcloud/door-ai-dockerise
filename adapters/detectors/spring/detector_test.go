@@ -1,6 +1,7 @@
 package spring
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"testing"
@@ -107,12 +108,26 @@ func TestDetectSpringBoot(t *testing.T) {
 				Confidence:    1.0,
 			},
 		},
+		{
+			name: "BuildSrc plugin",
+			fsys: os.DirFS("testdata/buildsrc_plugin"),
+			want: true,
+			wantInfo: core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "gradle",
+				Version:       "3.2.0",
+				Port:          8080,
+				DetectedFiles: []string{"buildSrc/build.gradle.kts"},
+				Confidence:    1.0,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			detector := NewSpringBootDetectorV3()
-			info, found := detector.Detect(tt.fsys)
+			info, found, err := detector.Detect(context.Background(), tt.fsys, nil)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.want, found)
 			if found {
 				assert.Equal(t, tt.wantInfo, info)

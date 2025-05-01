@@ -111,13 +111,17 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) e
 	// When stack is spring-boot, extract facts and use them in the prompt
 	var prompt string
 	if stackInfo.Name == "spring-boot" {
-		spec, err := spring.NewExtractor().Extract(projectDir)
+		spec, err := spring.NewExtractor().Extract(os.DirFS(projectDir))
 		if err != nil {
 			// Fall back to current path if extractor errors
 			spec = nil
 		}
 
 		// Use the spec in the prompt
+		springBootVersion := ""
+		if spec.SpringBootVersion != nil {
+			springBootVersion = *spec.SpringBootVersion
+		}
 		prompt = fmt.Sprintf("Generate a Dockerfile for a Spring Boot application with the following configuration:\n"+
 			"Build Tool: %s\n"+
 			"JDK Version: %s\n"+
@@ -128,7 +132,7 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) e
 			"Ports: %v\n",
 			spec.BuildTool,
 			spec.JDKVersion,
-			spec.SpringBootVersion,
+			springBootVersion,
 			spec.BuildCmd,
 			spec.Artifact,
 			spec.HealthEndpoint,
@@ -191,7 +195,7 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) e
 
 	// Verify container health
 	if stackInfo.Name == "spring-boot" {
-		spec, err := spring.NewExtractor().Extract(projectDir)
+		spec, err := spring.NewExtractor().Extract(os.DirFS(projectDir))
 		if err != nil {
 			return fmt.Errorf("failed to extract Spring Boot facts: %w", err)
 		}

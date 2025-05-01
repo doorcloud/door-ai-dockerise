@@ -42,6 +42,19 @@ func (d *SpringBootDetectorV2) Detect(ctx context.Context, fsys fs.FS, logSink c
 		return info, true, nil
 	}
 
+	// Check for buildSrc
+	if d.dirExists(fsys, "buildSrc") {
+		if d.matchBuildSrc(fsys) {
+			info := core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "gradle",
+				DetectedFiles: []string{"buildSrc/build.gradle.kts"},
+			}
+			d.log("detector=spring-boot found=true buildtool=gradle source=buildsrc")
+			return info, true, nil
+		}
+	}
+
 	return core.StackInfo{}, false, nil
 }
 
@@ -269,4 +282,44 @@ func (d *SpringBootDetectorV2) Describe() string {
 // SetLogSink sets the log sink for the detector
 func (d *SpringBootDetectorV2) SetLogSink(logSink core.LogSink) {
 	d.logSink = logSink
+}
+
+// dirExists checks if a directory exists in the filesystem
+func (d *SpringBootDetectorV2) dirExists(fsys fs.FS, path string) bool {
+	info, err := fs.Stat(fsys, path)
+	return err == nil && info.IsDir()
+}
+
+// matchBuildSrc checks if the buildSrc directory contains Spring Boot configuration
+func (d *SpringBootDetectorV2) matchBuildSrc(fsys fs.FS) bool {
+	var found bool
+	err := fs.WalkDir(fsys, "buildSrc", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			// Skip certain directories
+			name := filepath.Base(path)
+			if name == "build" || name == ".git" || name == "node_modules" {
+				return fs.SkipDir
+			}
+			// Check depth
+			depth := strings.Count(path, string(filepath.Separator))
+			if depth > 2 {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		// Check file content for Spring Boot references
+		content, err := fs.ReadFile(fsys, path)
+		if err != nil {
+			return nil
+		}
+		if springGradleRX.Match(content) {
+			found = true
+			return fs.SkipAll
+		}
+		return nil
+	})
+	return err == nil && found
 }

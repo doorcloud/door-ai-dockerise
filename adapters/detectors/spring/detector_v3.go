@@ -1,6 +1,7 @@
 package spring
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -50,74 +51,94 @@ func (d *SpringBootDetectorV3) SetLogSink(logSink core.LogSink) {
 }
 
 // Detect checks if the given filesystem contains a Spring Boot project
-func (d *SpringBootDetectorV3) Detect(fsys fs.FS) (core.StackInfo, bool) {
+func (d *SpringBootDetectorV3) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
+	d.logSink = logSink
+
 	// First, check for Maven projects
 	pomFiles, err := fs.Glob(fsys, "pom.xml")
-	if err == nil && len(pomFiles) > 0 {
+	if err != nil {
+		return core.StackInfo{}, false, err
+	}
+	if len(pomFiles) > 0 {
 		for _, pomFile := range pomFiles {
 			if info, ok := d.isSpringBootMavenModule(fsys, pomFile); ok {
 				info.DetectedFiles = []string{pomFile}
-				return info, true
+				return info, true, nil
 			}
 		}
 	}
 
 	// Then, check for Gradle projects
 	gradleFiles, err := fs.Glob(fsys, "build.gradle*")
-	if err == nil && len(gradleFiles) > 0 {
+	if err != nil {
+		return core.StackInfo{}, false, err
+	}
+	if len(gradleFiles) > 0 {
 		for _, gradleFile := range gradleFiles {
 			if info, ok := d.isSpringBootGradleModule(fsys, gradleFile); ok {
 				info.DetectedFiles = []string{gradleFile}
-				return info, true
+				return info, true, nil
 			}
 		}
 	}
 
 	// Check subdirectories for Maven projects
 	pomFiles, err = fs.Glob(fsys, "*/pom.xml")
-	if err == nil && len(pomFiles) > 0 {
+	if err != nil {
+		return core.StackInfo{}, false, err
+	}
+	if len(pomFiles) > 0 {
 		for _, pomFile := range pomFiles {
 			if info, ok := d.isSpringBootMavenModule(fsys, pomFile); ok {
 				info.DetectedFiles = []string{pomFile}
-				return info, true
+				return info, true, nil
 			}
 		}
 	}
 
 	// Check subdirectories for Gradle projects
 	gradleFiles, err = fs.Glob(fsys, "*/build.gradle*")
-	if err == nil && len(gradleFiles) > 0 {
+	if err != nil {
+		return core.StackInfo{}, false, err
+	}
+	if len(gradleFiles) > 0 {
 		for _, gradleFile := range gradleFiles {
 			if info, ok := d.isSpringBootGradleModule(fsys, gradleFile); ok {
 				info.DetectedFiles = []string{gradleFile}
-				return info, true
+				return info, true, nil
 			}
 		}
 	}
 
 	// Check deep nested directories for Maven projects
 	pomFiles, err = fs.Glob(fsys, "**/pom.xml")
-	if err == nil && len(pomFiles) > 0 {
+	if err != nil {
+		return core.StackInfo{}, false, err
+	}
+	if len(pomFiles) > 0 {
 		for _, pomFile := range pomFiles {
 			if info, ok := d.isSpringBootMavenModule(fsys, pomFile); ok {
 				info.DetectedFiles = []string{pomFile}
-				return info, true
+				return info, true, nil
 			}
 		}
 	}
 
 	// Check deep nested directories for Gradle projects
 	gradleFiles, err = fs.Glob(fsys, "**/build.gradle*")
-	if err == nil && len(gradleFiles) > 0 {
+	if err != nil {
+		return core.StackInfo{}, false, err
+	}
+	if len(gradleFiles) > 0 {
 		for _, gradleFile := range gradleFiles {
 			if info, ok := d.isSpringBootGradleModule(fsys, gradleFile); ok {
 				info.DetectedFiles = []string{gradleFile}
-				return info, true
+				return info, true, nil
 			}
 		}
 	}
 
-	return core.StackInfo{}, false
+	return core.StackInfo{}, false, nil
 }
 
 // detectMaven checks for Maven projects (single and multi-module)
