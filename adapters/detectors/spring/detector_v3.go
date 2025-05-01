@@ -1,7 +1,6 @@
 package spring
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -17,11 +16,11 @@ const (
 )
 
 var (
-	springGradleRXV3          = regexp.MustCompile(`(?i)org\.springframework\.boot`)
+	springGradleRXV3          = regexp.MustCompile(`(?i)spring[-_.]?boot`)
 	springBootMavenRXV3       = regexp.MustCompile(`(?s)<parent>.*?<groupId>\s*org\.springframework\.boot\s*</groupId>.*?<artifactId>\s*spring-boot-starter-parent\s*</artifactId>.*?<version>\s*(\d+\.\d+\.\d+)(?:-[^<]+)?\s*</version>.*?</parent>`)
 	springBootMavenDepRXV3    = regexp.MustCompile(`<dependency>.*?<groupId>\s*org\.springframework\.boot\s*</groupId>.*?<artifactId>\s*spring-boot-starter[^<]*</artifactId>.*?<version>\s*(\d+\.\d+\.\d+)(?:-[^<]+)?\s*</version>.*?</dependency>`)
 	springBootMavenPluginRXV3 = regexp.MustCompile(`<plugin>.*?<groupId>\s*org\.springframework\.boot\s*</groupId>.*?<artifactId>\s*spring-boot-maven-plugin\s*</artifactId>.*?<version>\s*(\d+\.\d+\.\d+)(?:-[^<]+)?\s*</version>.*?</plugin>`)
-	springBootGradleRXV3      = regexp.MustCompile(`(?:id\s+['"]org\.springframework\.boot['"].*?version\s+['"]|springBootVersion\s*=\s*['"]|org\.springframework\.boot:spring-boot[^:]*:)(\d+\.\d+\.\d+)(?:-[^'"]+)?['"]`)
+	springBootGradleRXV3      = regexp.MustCompile(`(?:id\s+['"]org\.springframework\.boot['"].*?version\s+['"]|springBootVersion\s*=\s*['"]|org\.springframework\.boot:spring-boot[^:]*:|spring-boot\s*=\s*['"])(\d+\.\d+\.\d+)(?:-[^'"]+)?['"]`)
 	springBootAppRXV3         = regexp.MustCompile(`@SpringBootApplication`)
 )
 
@@ -50,25 +49,75 @@ func (d *SpringBootDetectorV3) SetLogSink(logSink core.LogSink) {
 	d.logSink = logSink
 }
 
-// Detect implements the Detector interface
-func (d *SpringBootDetectorV3) Detect(ctx context.Context, fsys fs.FS, logSink core.LogSink) (core.StackInfo, bool, error) {
-	d.logSink = logSink
-
-	// First check for Maven projects
-	if info, found, err := d.detectMaven(fsys); err != nil {
-		return core.StackInfo{}, false, err
-	} else if found {
-		return info, true, nil
+// Detect checks if the given filesystem contains a Spring Boot project
+func (d *SpringBootDetectorV3) Detect(fsys fs.FS) (core.StackInfo, bool) {
+	// First, check for Maven projects
+	pomFiles, err := fs.Glob(fsys, "pom.xml")
+	if err == nil && len(pomFiles) > 0 {
+		for _, pomFile := range pomFiles {
+			if info, ok := d.isSpringBootMavenModule(fsys, pomFile); ok {
+				info.DetectedFiles = []string{pomFile}
+				return info, true
+			}
+		}
 	}
 
-	// Then check for Gradle projects
-	if info, found, err := d.detectGradle(fsys); err != nil {
-		return core.StackInfo{}, false, err
-	} else if found {
-		return info, true, nil
+	// Then, check for Gradle projects
+	gradleFiles, err := fs.Glob(fsys, "build.gradle*")
+	if err == nil && len(gradleFiles) > 0 {
+		for _, gradleFile := range gradleFiles {
+			if info, ok := d.isSpringBootGradleModule(fsys, gradleFile); ok {
+				info.DetectedFiles = []string{gradleFile}
+				return info, true
+			}
+		}
 	}
 
-	return core.StackInfo{}, false, nil
+	// Check subdirectories for Maven projects
+	pomFiles, err = fs.Glob(fsys, "*/pom.xml")
+	if err == nil && len(pomFiles) > 0 {
+		for _, pomFile := range pomFiles {
+			if info, ok := d.isSpringBootMavenModule(fsys, pomFile); ok {
+				info.DetectedFiles = []string{pomFile}
+				return info, true
+			}
+		}
+	}
+
+	// Check subdirectories for Gradle projects
+	gradleFiles, err = fs.Glob(fsys, "*/build.gradle*")
+	if err == nil && len(gradleFiles) > 0 {
+		for _, gradleFile := range gradleFiles {
+			if info, ok := d.isSpringBootGradleModule(fsys, gradleFile); ok {
+				info.DetectedFiles = []string{gradleFile}
+				return info, true
+			}
+		}
+	}
+
+	// Check deep nested directories for Maven projects
+	pomFiles, err = fs.Glob(fsys, "**/pom.xml")
+	if err == nil && len(pomFiles) > 0 {
+		for _, pomFile := range pomFiles {
+			if info, ok := d.isSpringBootMavenModule(fsys, pomFile); ok {
+				info.DetectedFiles = []string{pomFile}
+				return info, true
+			}
+		}
+	}
+
+	// Check deep nested directories for Gradle projects
+	gradleFiles, err = fs.Glob(fsys, "**/build.gradle*")
+	if err == nil && len(gradleFiles) > 0 {
+		for _, gradleFile := range gradleFiles {
+			if info, ok := d.isSpringBootGradleModule(fsys, gradleFile); ok {
+				info.DetectedFiles = []string{gradleFile}
+				return info, true
+			}
+		}
+	}
+
+	return core.StackInfo{}, false
 }
 
 // detectMaven checks for Maven projects (single and multi-module)
@@ -113,6 +162,42 @@ func (d *SpringBootDetectorV3) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 		return core.StackInfo{}, false, nil
 	}
 
+	// Check for version catalog first
+	if content := readFileIfExists(fsys, "gradle/libs.versions.toml"); content != nil {
+		if springGradleRXV3.Match(content) {
+			info := core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "gradle",
+				Port:          defaultPortV3,
+				DetectedFiles: []string{"gradle/libs.versions.toml"},
+				Confidence:    1.0,
+			}
+			if matches := springBootGradleRXV3.FindSubmatch(content); len(matches) > 1 {
+				info.Version = string(matches[1])
+			}
+			d.log("detector=spring-boot found=true buildtool=gradle source=version-catalog")
+			return info, true, nil
+		}
+	}
+
+	// Check for settings.gradle with alias
+	if content := readFileIfExists(fsys, "settings.gradle"); content != nil {
+		if strings.Contains(string(content), "alias(") && springGradleRXV3.Match(content) {
+			info := core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "gradle",
+				Port:          defaultPortV3,
+				DetectedFiles: []string{"settings.gradle"},
+				Confidence:    1.0,
+			}
+			if matches := springBootGradleRXV3.FindSubmatch(content); len(matches) > 1 {
+				info.Version = string(matches[1])
+			}
+			d.log("detector=spring-boot found=true buildtool=gradle source=settings-alias")
+			return info, true, nil
+		}
+	}
+
 	var gradlePaths []string
 	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -135,11 +220,24 @@ func (d *SpringBootDetectorV3) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 		return core.StackInfo{}, false, err
 	}
 
-	// Check all Gradle files
+	// First check for app/build.gradle or application/build.gradle
+	for _, gradlePath := range gradlePaths {
+		dir := filepath.Dir(gradlePath)
+		base := filepath.Base(dir)
+		if base == "app" || base == "application" {
+			if info, found := d.isSpringBootGradleModule(fsys, gradlePath); found {
+				info.DetectedFiles = []string{gradlePath}
+				d.log("detector=spring-boot found=true buildtool=gradle")
+				return info, true, nil
+			}
+		}
+	}
+
+	// Then check other build.gradle files
 	for _, gradlePath := range gradlePaths {
 		if info, found := d.isSpringBootGradleModule(fsys, gradlePath); found {
 			info.DetectedFiles = []string{gradlePath}
-			d.log("detector=spring-boot found=true buildtool=gradle confidence=%f", info.Confidence)
+			d.log("detector=spring-boot found=true buildtool=gradle")
 			return info, true, nil
 		}
 	}
@@ -147,7 +245,7 @@ func (d *SpringBootDetectorV3) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 	return core.StackInfo{}, false, nil
 }
 
-// isSpringBootMavenModule checks if the pom.xml is a Spring Boot module
+// isSpringBootMavenModule checks if the pom.xml file is a Spring Boot module
 func (d *SpringBootDetectorV3) isSpringBootMavenModule(fsys fs.FS, pomPath string) (core.StackInfo, bool) {
 	content, err := fs.ReadFile(fsys, pomPath)
 	if err != nil {
@@ -157,21 +255,11 @@ func (d *SpringBootDetectorV3) isSpringBootMavenModule(fsys fs.FS, pomPath strin
 	contentStr := string(content)
 	signals := 0
 
-	// Check for Spring Boot parent or platform BOM
-	hasParent := strings.Contains(contentStr, "<parent>") &&
-		(strings.Contains(contentStr, "<groupId>org.springframework.boot</groupId>") ||
-			strings.Contains(contentStr, "<groupId>io.spring.platform</groupId>")) &&
-		(strings.Contains(contentStr, "<artifactId>spring-boot-starter-parent</artifactId>") ||
-			strings.Contains(contentStr, "<artifactId>platform-bom</artifactId>"))
+	// Check for Spring Boot parent
+	hasParent := strings.Contains(contentStr, "<groupId>org.springframework.boot</groupId>") &&
+		strings.Contains(contentStr, "<artifactId>spring-boot-starter-parent</artifactId>")
 	if hasParent {
-		signals++
-	}
-
-	// Check for Spring Boot plugin
-	hasPlugin := strings.Contains(contentStr, "<groupId>org.springframework.boot</groupId>") &&
-		strings.Contains(contentStr, "<artifactId>spring-boot-maven-plugin</artifactId>")
-	if hasPlugin {
-		signals++
+		signals += 2
 	}
 
 	// Check for Spring Boot starter dependencies
@@ -180,7 +268,7 @@ func (d *SpringBootDetectorV3) isSpringBootMavenModule(fsys fs.FS, pomPath strin
 		strings.Contains(contentStr, "<artifactId>spring-boot-starter-webflux</artifactId>") ||
 		strings.Contains(contentStr, "<artifactId>spring-boot-starter-data-jpa</artifactId>")
 	if hasStarter {
-		signals++
+		signals += 2
 	}
 
 	// Check for Spring Boot annotations in Java files
@@ -189,25 +277,29 @@ func (d *SpringBootDetectorV3) isSpringBootMavenModule(fsys fs.FS, pomPath strin
 		signals++
 	}
 
-	// For Maven modules, we need either:
-	// 1. Spring Boot parent + starter dependencies, or
-	// 2. Spring Boot plugin + starter dependencies
-	if !((hasParent || hasPlugin) && hasStarter) {
+	// Check for Spring Boot configuration files
+	hasConfig := d.checkForSpringBootConfig(fsys, filepath.Dir(pomPath))
+	if hasConfig {
+		signals++
+	}
+
+	// For Maven modules, we need either parent or starter dependencies
+	if !hasParent && !hasStarter {
 		return core.StackInfo{}, false
 	}
 
 	// Calculate confidence based on signals
 	confidence := 0.5
-	switch signals {
-	case 2:
-		confidence = 0.8
-	case 3, 4:
+	switch {
+	case signals >= 4:
 		confidence = 1.0
+	case signals >= 2:
+		confidence = 0.8
 	}
 
 	// Extract version if available
 	version := d.extractVersionFromMaven(contentStr)
-	if version == "" && hasParent {
+	if version == "" {
 		// Try to find version in parent POMs
 		version = d.findVersionInParentPOMs(fsys, filepath.Dir(pomPath))
 	}
@@ -236,7 +328,7 @@ func (d *SpringBootDetectorV3) isSpringBootGradleModule(fsys fs.FS, gradlePath s
 		(strings.Contains(contentStr, "id 'org.springframework.boot'") ||
 			strings.Contains(contentStr, "id(\"org.springframework.boot\")"))
 	if hasPlugin {
-		signals++
+		signals += 2
 	}
 
 	// Check for Spring Boot starter dependencies
@@ -245,12 +337,18 @@ func (d *SpringBootDetectorV3) isSpringBootGradleModule(fsys fs.FS, gradlePath s
 		strings.Contains(contentStr, "spring-boot-starter-webflux") ||
 		strings.Contains(contentStr, "spring-boot-starter-data-jpa")
 	if hasStarter {
-		signals++
+		signals += 2
 	}
 
 	// Check for Spring Boot annotations in Java files
 	hasAnnotations := d.checkForSpringBootAnnotations(fsys, filepath.Dir(gradlePath))
 	if hasAnnotations {
+		signals++
+	}
+
+	// Check for Spring Boot configuration files
+	hasConfig := d.checkForSpringBootConfig(fsys, filepath.Dir(gradlePath))
+	if hasConfig {
 		signals++
 	}
 
@@ -261,17 +359,46 @@ func (d *SpringBootDetectorV3) isSpringBootGradleModule(fsys fs.FS, gradlePath s
 
 	// Calculate confidence based on signals
 	confidence := 0.5
-	switch signals {
-	case 2:
-		confidence = 0.8
-	case 3:
+	switch {
+	case signals >= 4:
 		confidence = 1.0
+	case signals >= 2:
+		confidence = 0.8
 	}
 
 	// Extract version if available
-	version := ""
-	if hasPlugin {
-		version = d.extractVersionFromGradle(contentStr)
+	version := d.extractVersionFromGradle(contentStr)
+	if version == "" {
+		// Try to find version in version catalog
+		if versionCatalog := readFileIfExists(fsys, "gradle/libs.versions.toml"); versionCatalog != nil {
+			if matches := springBootGradleRXV3.FindSubmatch(versionCatalog); len(matches) > 1 {
+				version = string(matches[1])
+			}
+		}
+		// Try to find version in settings.gradle
+		if version == "" {
+			if settingsContent := readFileIfExists(fsys, "settings.gradle"); settingsContent != nil {
+				if matches := springBootGradleRXV3.FindSubmatch(settingsContent); len(matches) > 1 {
+					version = string(matches[1])
+				}
+			}
+		}
+		// Try to find version in settings.gradle.kts
+		if version == "" {
+			if settingsContent := readFileIfExists(fsys, "settings.gradle.kts"); settingsContent != nil {
+				if matches := springBootGradleRXV3.FindSubmatch(settingsContent); len(matches) > 1 {
+					version = string(matches[1])
+				}
+			}
+		}
+		// Try to find version in parent build.gradle.kts
+		if version == "" {
+			if parentContent := readFileIfExists(fsys, "../build.gradle.kts"); parentContent != nil {
+				if matches := springBootGradleRXV3.FindSubmatch(parentContent); len(matches) > 1 {
+					version = string(matches[1])
+				}
+			}
+		}
 	}
 
 	return core.StackInfo{
@@ -283,47 +410,42 @@ func (d *SpringBootDetectorV3) isSpringBootGradleModule(fsys fs.FS, gradlePath s
 	}, true
 }
 
-// findVersionInParentPOMs looks for Spring Boot version in parent POMs
+// findVersionInParentPOMs recursively searches for Spring Boot version in parent POMs
 func (d *SpringBootDetectorV3) findVersionInParentPOMs(fsys fs.FS, dir string) string {
-	// Try up to 2 levels up
-	for i := 0; i < 2; i++ {
-		parentDir := filepath.Dir(dir)
-		if parentDir == dir {
-			break // Reached root
-		}
-		dir = parentDir
-
-		// Check parent pom.xml
-		content, err := fs.ReadFile(fsys, filepath.Join(dir, "pom.xml"))
-		if err != nil {
-			continue
-		}
-
-		// Look for Spring Boot parent with version
-		contentStr := string(content)
-		if strings.Contains(contentStr, "<groupId>org.springframework.boot</groupId>") &&
-			strings.Contains(contentStr, "<artifactId>spring-boot-starter-parent</artifactId>") {
-			if version := d.extractVersionFromMaven(contentStr); version != "" {
-				return version
-			}
-		}
+	// Try to find parent pom.xml
+	parentDir := filepath.Dir(dir)
+	if parentDir == dir {
+		return ""
 	}
-	return ""
+
+	parentPomPath := filepath.Join(parentDir, "pom.xml")
+	content, err := fs.ReadFile(fsys, parentPomPath)
+	if err != nil {
+		return ""
+	}
+
+	version := d.extractVersionFromMaven(string(content))
+	if version != "" {
+		return version
+	}
+
+	// Recursively check parent
+	return d.findVersionInParentPOMs(fsys, parentDir)
 }
 
-// extractVersionFromMaven extracts the Spring Boot version from pom.xml
+// extractVersionFromMaven extracts Spring Boot version from Maven POM
 func (d *SpringBootDetectorV3) extractVersionFromMaven(content string) string {
-	// Try parent version first
+	// First try parent version
 	if matches := springBootMavenRXV3.FindStringSubmatch(content); len(matches) > 1 {
 		return matches[1]
 	}
 
-	// Try dependency version
+	// Then try dependency version
 	if matches := springBootMavenDepRXV3.FindStringSubmatch(content); len(matches) > 1 {
 		return matches[1]
 	}
 
-	// Try plugin version
+	// Finally try plugin version
 	if matches := springBootMavenPluginRXV3.FindStringSubmatch(content); len(matches) > 1 {
 		return matches[1]
 	}
@@ -331,12 +453,10 @@ func (d *SpringBootDetectorV3) extractVersionFromMaven(content string) string {
 	return ""
 }
 
-// extractVersionFromGradle extracts the Spring Boot version from build.gradle
+// extractVersionFromGradle extracts Spring Boot version from Gradle build file
 func (d *SpringBootDetectorV3) extractVersionFromGradle(content string) string {
-	if matches := springBootGradleRXV3.FindStringSubmatch(content); len(matches) > 2 {
-		if matches[1] == "org.springframework.boot" {
-			return matches[2]
-		}
+	if matches := springBootGradleRXV3.FindStringSubmatch(content); len(matches) > 1 {
+		return matches[1]
 	}
 	return ""
 }

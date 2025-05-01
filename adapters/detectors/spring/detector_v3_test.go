@@ -1,7 +1,9 @@
 package spring
 
 import (
-	"context"
+	"io/fs"
+	"os"
+	"reflect"
 	"testing"
 	"testing/fstest"
 
@@ -11,22 +13,25 @@ import (
 
 func TestSpringBootDetectorV3_Detect(t *testing.T) {
 	tests := []struct {
-		name      string
-		files     map[string]string
-		wantInfo  core.StackInfo
-		wantFound bool
-		wantErr   bool
+		name   string
+		fsys   fstest.MapFS
+		want   core.StackInfo
+		wantOk bool
 	}{
 		{
 			name: "Maven project with all signals",
-			files: map[string]string{
-				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <project>
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.2.0</version>
     </parent>
+    <groupId>com.example</groupId>
+    <artifactId>demo</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -41,8 +46,10 @@ func TestSpringBootDetectorV3_Detect(t *testing.T) {
             </plugin>
         </plugins>
     </build>
-</project>`,
-				"src/main/java/com/example/Application.java": `package com.example;
+</project>`),
+				},
+				"src/main/java/com/example/Application.java": &fstest.MapFile{
+					Data: []byte(`package com.example;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -51,32 +58,36 @@ public class Application {
     public static void main(String[] args) {
         SpringApplication.run(Application.class, args);
     }
-}`,
-				"src/main/resources/application.properties": "spring.application.name=test",
-			},
-			wantInfo: core.StackInfo{
-				Name:       "spring-boot",
-				BuildTool:  "maven",
-				Port:       8080,
-				Version:    "3.2.0",
-				Confidence: 1.0,
-				DetectedFiles: []string{
-					"pom.xml",
+}`),
+				},
+				"src/main/resources/application.properties": &fstest.MapFile{
+					Data: []byte("spring.application.name=test"),
 				},
 			},
-			wantFound: true,
+			want: core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "maven",
+				Version:       "3.2.0",
+				Port:          8080,
+				Confidence:    1.0,
+				DetectedFiles: []string{"pom.xml"},
+			},
+			wantOk: true,
 		},
 		{
 			name: "Gradle project with all signals",
-			files: map[string]string{
-				"build.gradle": `plugins {
+			fsys: fstest.MapFS{
+				"build.gradle": &fstest.MapFile{
+					Data: []byte(`plugins {
     id 'org.springframework.boot' version '3.2.0'
 }
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
-}`,
-				"src/main/java/com/example/Application.java": `package com.example;
+}`),
+				},
+				"src/main/java/com/example/Application.java": &fstest.MapFile{
+					Data: []byte(`package com.example;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -85,26 +96,28 @@ public class Application {
     public static void main(String[] args) {
         SpringApplication.run(Application.class, args);
     }
-}`,
-				"src/main/resources/application.yml": `server:
-  port: 9090`,
-			},
-			wantInfo: core.StackInfo{
-				Name:       "spring-boot",
-				BuildTool:  "gradle",
-				Port:       8080,
-				Version:    "3.2.0",
-				Confidence: 1.0,
-				DetectedFiles: []string{
-					"build.gradle",
+}`),
+				},
+				"src/main/resources/application.yml": &fstest.MapFile{
+					Data: []byte(`server:
+  port: 9090`),
 				},
 			},
-			wantFound: true,
+			want: core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "gradle",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    1.0,
+				DetectedFiles: []string{"build.gradle"},
+			},
+			wantOk: true,
 		},
 		{
 			name: "Maven project with two signals",
-			files: map[string]string{
-				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <project>
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -117,43 +130,43 @@ public class Application {
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
     </dependencies>
-</project>`,
-			},
-			wantInfo: core.StackInfo{
-				Name:       "spring-boot",
-				BuildTool:  "maven",
-				Port:       8080,
-				Version:    "3.2.0",
-				Confidence: 0.8,
-				DetectedFiles: []string{
-					"pom.xml",
+</project>`),
 				},
 			},
-			wantFound: true,
+			want: core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "maven",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    0.8,
+				DetectedFiles: []string{"pom.xml"},
+			},
+			wantOk: true,
 		},
 		{
 			name: "Gradle project with one signal",
-			files: map[string]string{
-				"build.gradle": `plugins {
+			fsys: fstest.MapFS{
+				"build.gradle": &fstest.MapFile{
+					Data: []byte(`plugins {
     id 'org.springframework.boot' version '3.2.0'
-}`,
-			},
-			wantInfo: core.StackInfo{
-				Name:       "spring-boot",
-				BuildTool:  "gradle",
-				Port:       8080,
-				Version:    "3.2.0",
-				Confidence: 0.5,
-				DetectedFiles: []string{
-					"build.gradle",
+}`),
 				},
 			},
-			wantFound: true,
+			want: core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "gradle",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    0.5,
+				DetectedFiles: []string{"build.gradle"},
+			},
+			wantOk: true,
 		},
 		{
 			name: "Mixed builders - prefer Maven",
-			files: map[string]string{
-				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <project>
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -166,62 +179,52 @@ public class Application {
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
     </dependencies>
-</project>`,
-				"build.gradle": `plugins {
+</project>`),
+				},
+				"build.gradle": &fstest.MapFile{
+					Data: []byte(`plugins {
     id 'java'
-}`,
-			},
-			wantInfo: core.StackInfo{
-				Name:       "spring-boot",
-				BuildTool:  "maven",
-				Port:       8080,
-				Version:    "3.2.0",
-				Confidence: 0.8,
-				DetectedFiles: []string{
-					"pom.xml",
+}`),
 				},
 			},
-			wantFound: true,
+			want: core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "maven",
+				Port:          8080,
+				Version:       "3.2.0",
+				Confidence:    0.8,
+				DetectedFiles: []string{"pom.xml"},
+			},
+			wantOk: true,
 		},
 		{
 			name: "Not a Spring Boot project",
-			files: map[string]string{
-				"pom.xml": `<?xml version="1.0" encoding="UTF-8"?>
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <project>
     <parent>
         <groupId>org.apache.maven</groupId>
         <artifactId>maven-parent</artifactId>
         <version>1.0</version>
     </parent>
-</project>`,
+</project>`),
+				},
 			},
-			wantFound: false,
+			wantOk: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create test filesystem
-			fsys := fstest.MapFS{}
-			for path, content := range tt.files {
-				fsys[path] = &fstest.MapFile{
-					Data: []byte(content),
-				}
-			}
-
-			// Create detector and run test
 			detector := NewSpringBootDetectorV3()
-			info, found, err := detector.Detect(context.Background(), fsys, nil)
-
-			// Check results
-			if tt.wantErr {
-				assert.Error(t, err)
+			got, ok := detector.Detect(tt.fsys)
+			if ok != tt.wantOk {
+				t.Errorf("SpringBootDetectorV3.Detect() ok = %v, want %v", ok, tt.wantOk)
 				return
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.wantFound, found)
-			if tt.wantFound {
-				assert.Equal(t, tt.wantInfo, info)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("SpringBootDetectorV3.Detect() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -292,104 +295,281 @@ func TestSpringBootDetectorV3_ExtractVersion(t *testing.T) {
 	}
 }
 
-func BenchmarkDetectSpringBoot(b *testing.B) {
-	// Create test filesystems for different Spring Boot projects
-	fsystems := []fstest.MapFS{
-		// Simple Maven project
-		{
-			"pom.xml": &fstest.MapFile{
-				Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
-    </parent>
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-    </dependencies>
-</project>`),
-			},
-		},
-		// Simple Gradle project
-		{
-			"build.gradle": &fstest.MapFile{
-				Data: []byte(`plugins {
-    id 'org.springframework.boot' version '3.2.0'
-}
-
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-}`),
-			},
-		},
-		// Deep nested Maven project
-		{
-			"services/api/pom.xml": &fstest.MapFile{
-				Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
-    </parent>
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-    </dependencies>
-</project>`),
-			},
-		},
-		// Deep nested Gradle project
-		{
-			"apps/payment/build.gradle": &fstest.MapFile{
-				Data: []byte(`plugins {
-    id 'org.springframework.boot' version '3.2.0'
-}
-
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-}`),
-			},
-		},
-		// Mixed builders project
-		{
-			"pom.xml": &fstest.MapFile{
-				Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
-    </parent>
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-    </dependencies>
-</project>`),
-			},
-			"build.gradle": &fstest.MapFile{
-				Data: []byte(`plugins {
-    id 'java'
-}`),
-			},
-		},
-	}
-
+func BenchmarkDetect(b *testing.B) {
 	detector := NewSpringBootDetectorV3()
-	ctx := context.Background()
+	fsystems := []fs.FS{
+		os.DirFS("testdata/spring/maven-single"),
+		os.DirFS("testdata/spring/gradle-groovy"),
+		os.DirFS("testdata/spring/gradle-kotlin"),
+		os.DirFS("testdata/spring/maven-multi"),
+		os.DirFS("testdata/spring/gradle-multi"),
+		os.DirFS("testdata/spring_version_catalog_alias"),
+		os.DirFS("testdata/settings_alias_plugin"),
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, fsys := range fsystems {
-			detector.Detect(ctx, fsys, nil)
+			detector.Detect(fsys)
 		}
+	}
+}
+
+func TestIsSpringBoot(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		fsys fstest.MapFS
+		want bool
+	}{
+		{
+			name: "maven single module",
+			path: "pom.xml",
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>demo</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+</project>`),
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Gradle project with all signals",
+			path: "build.gradle",
+			fsys: fstest.MapFS{
+				"build.gradle": &fstest.MapFile{
+					Data: []byte(`plugins {
+    id 'org.springframework.boot' version '3.2.0'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+}`),
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Maven project with two signals",
+			path: "pom.xml",
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+    </parent>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+</project>`),
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Gradle project with one signal",
+			path: "build.gradle",
+			fsys: fstest.MapFS{
+				"build.gradle": &fstest.MapFile{
+					Data: []byte(`plugins {
+    id 'org.springframework.boot' version '3.2.0'
+}`),
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Mixed builders - prefer Maven",
+			path: "pom.xml",
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+    </parent>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+</project>`),
+				},
+				"build.gradle": &fstest.MapFile{
+					Data: []byte(`plugins {
+    id 'java'
+}`),
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Not a Spring Boot project",
+			path: "pom.xml",
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <parent>
+        <groupId>org.apache.maven</groupId>
+        <artifactId>maven-parent</artifactId>
+        <version>1.0</version>
+    </parent>
+</project>`),
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			detector := NewSpringBootDetectorV3()
+			_, got := detector.Detect(tt.fsys)
+			if got != tt.want {
+				t.Errorf("IsSpringBoot() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDetectSpringBootRepos(t *testing.T) {
+	tests := []struct {
+		name string
+		fsys fstest.MapFS
+		want bool
+	}{
+		{
+			name: "Spring Boot repository",
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+    </parent>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+</project>`),
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Non-Spring Boot repository",
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <parent>
+        <groupId>org.apache.maven</groupId>
+        <artifactId>maven-parent</artifactId>
+        <version>1.0</version>
+    </parent>
+</project>`),
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			detector := NewSpringBootDetectorV3()
+			_, got := detector.Detect(tt.fsys)
+			if got != tt.want {
+				t.Errorf("DetectSpringBootRepos() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDetectSpringBootRepos_Integration(t *testing.T) {
+	tests := []struct {
+		name string
+		fsys fstest.MapFS
+		want bool
+	}{
+		{
+			name: "Spring Boot repository",
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+    </parent>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+</project>`),
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Non-Spring Boot repository",
+			fsys: fstest.MapFS{
+				"pom.xml": &fstest.MapFile{
+					Data: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <parent>
+        <groupId>org.apache.maven</groupId>
+        <artifactId>maven-parent</artifactId>
+        <version>1.0</version>
+    </parent>
+</project>`),
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			detector := NewSpringBootDetectorV3()
+			_, got := detector.Detect(tt.fsys)
+			if got != tt.want {
+				t.Errorf("DetectSpringBootRepos_Integration() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

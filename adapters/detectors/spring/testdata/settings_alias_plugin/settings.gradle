@@ -1,0 +1,19 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+    versionCatalogs {
+        libs {
+            alias('spring-boot').to('org.springframework.boot:spring-boot:3.2.0')
+            alias('spring-boot-starter-web').to('org.springframework.boot:spring-boot-starter-web')
+            alias('spring-boot-starter-actuator').to('org.springframework.boot:spring-boot-starter-actuator')
+        }
+    }
+} 

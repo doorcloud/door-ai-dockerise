@@ -59,6 +59,32 @@ func TestExtractor(t *testing.T) {
 				Ports:             []int{8080},
 			},
 		},
+		{
+			name: "Spring Boot without actuator",
+			fsys: os.DirFS("testdata/spring_without_actuator"),
+			expected: &Spec{
+				BuildTool:         "maven",
+				JavaVersion:       "17",
+				SpringBootVersion: stringPtr("3.2.0"),
+				BuildCmd:          "mvn clean package -DskipTests",
+				Artifact:          "target/*.jar",
+				HealthEndpoint:    "",
+				Ports:             []int{8080},
+			},
+		},
+		{
+			name: "Gradle multi-module with Kotlin DSL toolchain",
+			fsys: os.DirFS("testdata/gradle_multi_kts_toolchain"),
+			expected: &Spec{
+				BuildTool:         "gradle",
+				JavaVersion:       "21",
+				SpringBootVersion: stringPtr("3.2.0"),
+				BuildCmd:          "./gradlew api:build -x test",
+				Artifact:          "api/build/libs/*.jar",
+				HealthEndpoint:    "/actuator/health",
+				Ports:             []int{8080},
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -101,6 +101,15 @@ func (d *SpringBootDetectorV2) detectMaven(fsys fs.FS) (core.StackInfo, bool, er
 	return core.StackInfo{}, false, nil
 }
 
+// readFileIfExists reads a file if it exists, returns nil if not found
+func readFileIfExists(fsys fs.FS, path string) []byte {
+	content, err := fs.ReadFile(fsys, path)
+	if err != nil {
+		return nil
+	}
+	return content
+}
+
 // detectGradle checks for Gradle projects (Groovy, Kotlin, and multi-module)
 func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, error) {
 	// Check for build.gradle* and settings.gradle*
@@ -151,6 +160,32 @@ func (d *SpringBootDetectorV2) detectGradle(fsys fs.FS) (core.StackInfo, bool, e
 				DetectedFiles: []string{gradlePath},
 			}
 			d.log("detector=spring-boot found=true buildtool=gradle")
+			return info, true, nil
+		}
+	}
+
+	// Check for version catalog
+	if content := readFileIfExists(fsys, "gradle/libs.versions.toml"); content != nil {
+		if springGradleRX.Match(content) {
+			info := core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "gradle",
+				DetectedFiles: []string{"gradle/libs.versions.toml"},
+			}
+			d.log("detector=spring-boot found=true buildtool=gradle source=version-catalog")
+			return info, true, nil
+		}
+	}
+
+	// Check for settings.gradle* with alias
+	if settingsContent := readFileIfExists(fsys, "settings.gradle"); settingsContent != nil {
+		if strings.Contains(string(settingsContent), "alias(") && springGradleRX.Match(settingsContent) {
+			info := core.StackInfo{
+				Name:          "spring-boot",
+				BuildTool:     "gradle",
+				DetectedFiles: []string{"settings.gradle"},
+			}
+			d.log("detector=spring-boot found=true buildtool=gradle source=settings-alias")
 			return info, true, nil
 		}
 	}
