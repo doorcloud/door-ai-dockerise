@@ -27,7 +27,13 @@ func (g *LLMGenerator) GatherFacts(ctx context.Context, fsys fs.FS, stack core.S
 
 // Generate creates a Dockerfile using the provided facts
 func (g *LLMGenerator) Generate(ctx context.Context, facts core.Facts) (string, error) {
-	return g.llm.GenerateDockerfile(ctx, facts)
+	messages := []core.Message{
+		{
+			Role:    "user",
+			Content: fmt.Sprintf("Generate a Dockerfile for %s project using %s build tool.", facts.StackType, facts.BuildTool),
+		},
+	}
+	return g.llm.Complete(ctx, messages)
 }
 
 // GenerateDockerfile implements the ChatCompletion interface

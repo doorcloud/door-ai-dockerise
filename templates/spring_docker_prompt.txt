@@ -1,0 +1,17 @@
+RULES
+1. Use multi-stage BuildKit Dockerfile  
+   - **Builder**: `eclipse-temurin:<java_version>-jdk`  
+   - **Runtime**: `gcr.io/distroless/java<java_version>-debian12`  
+2. Add BuildKit cache mounts:  
+   - Maven → `--mount=type=cache,target=/root/.m2`  
+   - Gradle → `--mount=type=cache,target=/home/gradle/.gradle`  
+3. COPY the exact `artifact` to `/app/app.jar`  
+4. If `sbom_path` present, COPY to `/app/sbom.cdx.json`  
+5. Add OCI labels:  
+   `org.opencontainers.image.source` and `.version` = `spring_boot_version`  
+6. Emit **only** the Dockerfile, no commentary.
+
+DEFAULTS
+java_version: 17
+ports: [8080]
+build_cmd: mvn -q package -DskipTests 

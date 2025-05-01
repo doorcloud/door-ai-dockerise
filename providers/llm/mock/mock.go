@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"strings"
 
@@ -23,33 +24,23 @@ func (m *MockClient) SetResponse(prompt string, response string) {
 }
 
 func (m *MockClient) Complete(ctx context.Context, messages []core.Message) (string, error) {
-	// For testing, just return the last message content
-	if len(messages) > 0 {
-		content := messages[len(messages)-1].Content
-		// Check if this is a React prompt
-		if strings.Contains(content, "framework: react") {
-			return `FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/package*.json ./
-RUN npm install --production
-
-EXPOSE 3001
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/ || exit 1
-
-CMD ["npm", "start"]`, nil
-		}
-		return content, nil
+	if len(messages) == 0 {
+		return "", errors.New("no messages provided")
 	}
-	return "FROM ubuntu:latest\n", nil
+
+	// Return a mock Dockerfile that follows the new rules
+	return `# Build stage
+FROM eclipse-temurin:17-jdk as builder
+WORKDIR /app
+COPY . .
+RUN --mount=type=cache,target=/root/.m2 mvn -q package -DskipTests
+
+# Runtime stage
+FROM gcr.io/distroless/java17-debian12
+WORKDIR /app
+COPY --from=builder /app/target/*.jar /app/app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]`, nil
 }
 
 func (m *MockClient) Generate(ctx context.Context, facts core.Facts) (string, error) {
