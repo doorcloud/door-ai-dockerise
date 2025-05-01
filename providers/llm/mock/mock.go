@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"strings"
 
@@ -14,9 +15,26 @@ type MockClient struct {
 }
 
 func NewMockClient() *MockClient {
-	return &MockClient{
+	client := &MockClient{
 		responses: make(map[string]string),
 	}
+
+	// Set default response for Spring Boot with SBOM
+	client.responses["spring-boot:maven"] = `# Build stage
+FROM eclipse-temurin:17-jdk as builder
+WORKDIR /app
+COPY . .
+RUN --mount=type=cache,target=/root/.m2 mvn -q package -DskipTests
+
+# Runtime stage
+FROM gcr.io/distroless/java17-debian12
+WORKDIR /app
+COPY --from=builder /app/target/*.jar /app/app.jar
+COPY target/bom.cdx.json /app/sbom.cdx.json
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]`
+
+	return client
 }
 
 func (m *MockClient) SetResponse(prompt string, response string) {
@@ -46,6 +64,50 @@ ENTRYPOINT ["java", "-jar", "/app/app.jar"]`, nil
 func (m *MockClient) Generate(ctx context.Context, facts core.Facts) (string, error) {
 	key := facts.StackType + ":" + facts.BuildTool
 	if response, ok := m.responses[key]; ok {
+		if facts.SBOMPath != "" || facts.Layered {
+			dockerfile := `# Build stage
+FROM eclipse-temurin:17-jdk as builder
+WORKDIR /app
+COPY . .
+RUN --mount=type=cache,target=/root/.m2 mvn -q package -DskipTests`
+
+			if facts.Layered {
+				dockerfile += "\nRUN java -Djarmode=layertools extract --destination layers --jar target/*.jar"
+				dockerfile += `
+
+# Runtime stage
+FROM gcr.io/distroless/java17-debian12
+WORKDIR /app
+COPY --from=builder /app/layers/dependencies ./
+COPY --from=builder /app/layers/spring-boot-loader ./
+COPY --from=builder /app/layers/snapshot-dependencies ./
+COPY --from=builder /app/layers/application ./`
+			} else {
+				dockerfile += `
+
+# Runtime stage
+FROM gcr.io/distroless/java17-debian12
+WORKDIR /app
+COPY --from=builder /app/target/*.jar /app/app.jar`
+			}
+
+			if facts.SBOMPath != "" {
+				dockerfile += fmt.Sprintf("\nCOPY %s /app/sbom.cdx.json", facts.SBOMPath)
+			}
+
+			dockerfile += `
+EXPOSE 8080`
+
+			if facts.Layered {
+				dockerfile += `
+ENTRYPOINT ["java", "org.springframework.boot.loader.JarLauncher"]`
+			} else {
+				dockerfile += `
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]`
+			}
+
+			return dockerfile, nil
+		}
 		return response, nil
 	}
 	return "FROM ubuntu:latest\n", nil

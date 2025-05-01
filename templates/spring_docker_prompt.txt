@@ -16,7 +16,7 @@ RULES
    - Expose the port
    - Set the entrypoint to run the application
 4. COPY the exact `artifact` to `/app/app.jar`  
-5. If `sbom_path` present, COPY to `/app/sbom.cdx.json`  
+5. If `sbom_path` is not null, copy it to `/app/sbom.cdx.json` in the runtime stage
 6. Add OCI labels:  
    `org.opencontainers.image.source` and `.version` = `spring_boot_version`  
 7. Emit **only** the Dockerfile, no commentary.

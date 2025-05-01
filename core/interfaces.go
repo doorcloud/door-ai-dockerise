@@ -97,6 +97,8 @@ type Facts struct {
 	StackType string
 	BuildTool string
 	Port      int
+	SBOMPath  string
+	Layered   bool
 	// Add more fields as needed
 }
 

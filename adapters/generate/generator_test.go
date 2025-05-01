@@ -62,6 +62,21 @@ func TestGenerateDockerfile(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Spring Boot with SBOM",
+			facts: core.Facts{
+				StackType: "spring-boot",
+				BuildTool: "maven",
+				Port:      8080,
+				SBOMPath:  "target/bom.cdx.json",
+			},
+			wantErr: false,
+			checkers: []func(string) bool{
+				func(s string) bool {
+					return strings.Contains(s, "COPY target/bom.cdx.json /app/sbom.cdx.json")
+				},
+			},
+		},
 		// ... existing test cases ...
 	}
 
