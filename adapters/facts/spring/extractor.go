@@ -34,20 +34,18 @@ func (e *Extractor) Extract(fsys fs.FS) (*Spec, error) {
 	spec := &Spec{}
 
 	// Extract Java version
-	javaVersion, err := e.extractJavaVersion(fsys)
+	javaVersion, err := ExtractJavaVersion(fsys)
 	if err != nil {
 		return nil, err
 	}
 	spec.JavaVersion = javaVersion
 
 	// Extract Spring Boot version
-	springBootVersion, err := e.extractSpringBootVersion(fsys)
+	springBootVersion, err := ExtractSpringBootVersion(fsys)
 	if err != nil {
 		return nil, err
 	}
-	if springBootVersion != "" {
-		spec.SpringBootVersion = &springBootVersion
-	}
+	spec.SpringBootVersion = springBootVersion
 
 	// Determine build tool
 	buildTool, err := e.detectBuildTool(fsys)
@@ -80,13 +78,6 @@ func (e *Extractor) Extract(fsys fs.FS) (*Spec, error) {
 	case "gradle":
 		if err := e.extractGradleFacts(fsys, buildFile, spec); err != nil {
 			return nil, err
-		}
-	}
-
-	// Try to extract JDK version from toolchain files if not found in build file
-	if spec.JDKVersion == "" {
-		if jdkVersion, err := e.extractJDKVersionFromToolchain(fsys, buildTool); err == nil && jdkVersion != "" {
-			spec.JDKVersion = jdkVersion
 		}
 	}
 
@@ -179,18 +170,6 @@ func (e *Extractor) extractJDKVersionFromToolchain(fsys fs.FS, buildTool string)
 	return "", nil
 }
 
-// extractSpringBootVersion extracts Spring Boot version from various sources
-func (e *Extractor) extractSpringBootVersion(fsys fs.FS) (string, error) {
-	version, err := ExtractSpringBootVersion(fsys)
-	if err != nil {
-		return "", err
-	}
-	if version != nil {
-		return *version, nil
-	}
-	return "", nil
-}
-
 // detectBuildCommand detects the appropriate build command
 func (e *Extractor) detectBuildCommand(fsys fs.FS, buildTool string, artifactPath string) string {
 	switch buildTool {
@@ -224,20 +203,6 @@ func (e *Extractor) detectBuildCommand(fsys fs.FS, buildTool string, artifactPat
 
 // extractMavenFacts extracts facts from Maven build file
 func (e *Extractor) extractMavenFacts(fsys fs.FS, content string, spec *Spec) error {
-	// Extract Spring Boot version
-	if version, err := e.extractSpringBootVersion(fsys); err == nil && version != "" {
-		spec.SpringBootVersion = &version
-	}
-
-	// Extract Java version
-	if idx := strings.Index(content, "<java.version>"); idx != -1 {
-		start := idx + len("<java.version>")
-		end := strings.Index(content[start:], "<")
-		if end != -1 {
-			spec.JDKVersion = content[start : start+end]
-		}
-	}
-
 	// Set artifact
 	spec.Artifact = "target/*.jar"
 
@@ -253,20 +218,6 @@ func (e *Extractor) extractMavenFacts(fsys fs.FS, content string, spec *Spec) er
 
 // extractGradleFacts extracts facts from Gradle build file
 func (e *Extractor) extractGradleFacts(fsys fs.FS, content string, spec *Spec) error {
-	// Extract Spring Boot version
-	if version, err := e.extractSpringBootVersion(fsys); err == nil && version != "" {
-		spec.SpringBootVersion = &version
-	}
-
-	// Extract Java version
-	if idx := strings.Index(content, "sourceCompatibility = '"); idx != -1 {
-		start := idx + len("sourceCompatibility = '")
-		end := strings.Index(content[start:], "'")
-		if end != -1 {
-			spec.JDKVersion = content[start : start+end]
-		}
-	}
-
 	// Set artifact
 	spec.Artifact = "build/libs/*.jar"
 
@@ -274,7 +225,7 @@ func (e *Extractor) extractGradleFacts(fsys fs.FS, content string, spec *Spec) e
 	if cmd := e.detectBuildCommand(fsys, "gradle", spec.Artifact); cmd != "" {
 		spec.BuildCmd = cmd
 	} else {
-		spec.BuildCmd = "./gradlew build -x test"
+		spec.BuildCmd = "gradle build -x test"
 	}
 
 	return nil
@@ -406,22 +357,18 @@ func (e *Extractor) detectSBOMPath(fsys fs.FS, buildTool string) (string, error)
 	var sbomPaths []string
 	if buildTool == "maven" {
 		sbomPaths = []string{
-			filepath.Join("target", "bom.cdx.json"),
-			filepath.Join("target", "*.cdx.json"),
+			"target/bom.cdx.json",
+			"target/*.cdx.json",
 		}
 	} else {
 		sbomPaths = []string{
-			filepath.Join("build", "reports", "bom.cdx.json"),
+			"build/reports/bom.cdx.json",
 		}
 	}
 
-	for _, pattern := range sbomPaths {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			continue
-		}
-		if len(matches) > 0 {
-			return matches[0], nil
+	for _, path := range sbomPaths {
+		if _, err := fs.Stat(fsys, path); err == nil {
+			return path, nil
 		}
 	}
 	return "", nil

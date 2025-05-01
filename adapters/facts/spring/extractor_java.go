@@ -40,12 +40,6 @@ func extractJavaVersionFromMaven(fsys fs.FS) (string, error) {
 		if matches := targetRe.FindStringSubmatch(string(content)); len(matches) > 1 {
 			return matches[1], nil
 		}
-
-		// Try parent properties
-		parentRe := regexp.MustCompile(`<parent>.*?<properties>.*?<java\.version>(\d+)</java\.version>.*?</properties>.*?</parent>`)
-		if matches := parentRe.FindStringSubmatch(string(content)); len(matches) > 1 {
-			return matches[1], nil
-		}
 	}
 
 	// Try toolchains.xml
@@ -77,7 +71,7 @@ func extractJavaVersionFromGradle(fsys fs.FS) (string, error) {
 			}
 
 			// Try Kotlin DSL
-			kotlinRe := regexp.MustCompile(`toolchain\.languageVersion\.set\(JavaLanguageVersion\.of\((\d+)\)\)`)
+			kotlinRe := regexp.MustCompile(`toolchain\s*{\s*.*?languageVersion\s*\.set\(JavaLanguageVersion\.of\((\d+)\)\)`)
 			if matches := kotlinRe.FindStringSubmatch(string(content)); len(matches) > 1 {
 				return matches[1], nil
 			}
