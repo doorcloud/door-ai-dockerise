@@ -11,6 +11,7 @@ type Spec struct {
 	Version   string            `yaml:"version,omitempty" json:"version,omitempty"`
 	BuildTool string            `yaml:"buildTool,omitempty" json:"buildTool,omitempty"`
 	Params    map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
+	Layered   bool              `yaml:"layered,omitempty"`
 }
 
 // Validate returns an error if the spec is invalid

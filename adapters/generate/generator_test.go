@@ -33,25 +33,68 @@ func TestGenerateDockerfile(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Spring Boot 2.7 with layered JAR",
+			facts: core.Facts{
+				StackType: "spring-boot",
+				BuildTool: "maven",
+				Port:      8080,
+			},
+			wantErr: false,
+			checkers: []func(string) bool{
+				func(s string) bool {
+					return strings.Contains(s, "java -Djarmode=layertools extract")
+				},
+				func(s string) bool {
+					return strings.Contains(s, "COPY --from=builder /app/layers/dependencies ./")
+				},
+				func(s string) bool {
+					return strings.Contains(s, "COPY --from=builder /app/layers/spring-boot-loader ./")
+				},
+				func(s string) bool {
+					return strings.Contains(s, "COPY --from=builder /app/layers/snapshot-dependencies ./")
+				},
+				func(s string) bool {
+					return strings.Contains(s, "COPY --from=builder /app/layers/application ./")
+				},
+				func(s string) bool {
+					return strings.Contains(s, "ENTRYPOINT [\"java\", \"org.springframework.boot.loader.JarLauncher\"]")
+				},
+			},
+		},
 		// ... existing test cases ...
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create mock LLM client
-			mockLLM := mock.NewMockClient()
-			generator := NewLLM(mockLLM)
+			mockClient := mock.NewMockClient()
+			if tt.name == "Spring Boot 2.7 with layered JAR" {
+				mockClient.SetResponse("spring-boot:maven", `# Build stage
+FROM eclipse-temurin:17-jdk as builder
+WORKDIR /app
+COPY . .
+RUN --mount=type=cache,target=/root/.m2 mvn -q package -DskipTests
+RUN java -Djarmode=layertools extract --destination layers --jar target/*.jar
 
+# Runtime stage
+FROM gcr.io/distroless/java17-debian12
+WORKDIR /app
+COPY --from=builder /app/layers/dependencies ./
+COPY --from=builder /app/layers/spring-boot-loader ./
+COPY --from=builder /app/layers/snapshot-dependencies ./
+COPY --from=builder /app/layers/application ./
+EXPOSE 8080
+ENTRYPOINT ["java", "org.springframework.boot.loader.JarLauncher"]`)
+			}
+			generator := NewLLM(mockClient)
 			got, err := generator.Generate(context.Background(), tt.facts)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Generate() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if err == nil {
-				for _, checker := range tt.checkers {
-					if !checker(got) {
-						t.Errorf("Generated Dockerfile did not meet requirements")
-					}
+			for i, checker := range tt.checkers {
+				if !checker(got) {
+					t.Errorf("Generate() checker %d failed", i)
 				}
 			}
 		})

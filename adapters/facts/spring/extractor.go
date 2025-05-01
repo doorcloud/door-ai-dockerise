@@ -19,6 +19,7 @@ type Spec struct {
 	Ports             []int   `yaml:"ports"`
 	Metadata          map[string]string
 	JavaVersion       string `yaml:"java_version"`
+	Layered           bool   `yaml:"layered"`
 }
 
 // Extractor extracts Spring Boot project facts
@@ -92,6 +93,10 @@ func (e *Extractor) Extract(fsys fs.FS) (*Spec, error) {
 			spec.Metadata = make(map[string]string)
 		}
 		spec.Metadata["sbom_path"] = sbomPath
+	}
+
+	if spec.Metadata["spring_boot_version"] >= "2.3" {
+		spec.Layered = true
 	}
 
 	return spec, nil

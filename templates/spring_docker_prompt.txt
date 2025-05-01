@@ -1,15 +1,25 @@
 RULES
-1. Use multi-stage BuildKit Dockerfile  
-   - **Builder**: `eclipse-temurin:<java_version>-jdk`  
-   - **Runtime**: `gcr.io/distroless/java<java_version>-debian12`  
-2. Add BuildKit cache mounts:  
-   - Maven → `--mount=type=cache,target=/root/.m2`  
-   - Gradle → `--mount=type=cache,target=/home/gradle/.gradle`  
-3. COPY the exact `artifact` to `/app/app.jar`  
-4. If `sbom_path` present, COPY to `/app/sbom.cdx.json`  
-5. Add OCI labels:  
+1. Use multi-stage builds with a builder stage and a runtime stage
+2. In the builder stage:
+   - Use eclipse-temurin:17-jdk as the base image
+   - Copy the source code
+   - For Maven: Use BuildKit cache mount for .m2 directory
+   - For Gradle: Use BuildKit cache mount for .gradle directory
+   - Build the application
+3. In the runtime stage:
+   - Use gcr.io/distroless/java17-debian12 as the base image
+   - If layered is true:
+     - Extract the JAR layers using java -Djarmode=layertools
+     - Copy each layer directory (dependencies, spring-boot-loader, snapshot-dependencies, application)
+   - If layered is false:
+     - Copy the fat JAR from the builder stage
+   - Expose the port
+   - Set the entrypoint to run the application
+4. COPY the exact `artifact` to `/app/app.jar`  
+5. If `sbom_path` present, COPY to `/app/sbom.cdx.json`  
+6. Add OCI labels:  
    `org.opencontainers.image.source` and `.version` = `spring_boot_version`  
-6. Emit **only** the Dockerfile, no commentary.
+7. Emit **only** the Dockerfile, no commentary.
 
 DEFAULTS
 java_version: 17
