@@ -1,4 +1,4 @@
-.PHONY: build test lint clean tidy
+.PHONY: build test lint clean tidy test-e2e
 
 # Build targets
 build:
@@ -9,7 +9,7 @@ test:
 	go test -v ./...
 
 test-e2e:
-	DG_E2E=1 go test -v -tags=integration ./test/e2e/...
+	DG_E2E=1 OPENAI_MOCK=1 go test -v -tags=integration ./test/e2e/...
 
 # Code quality
 lint:

@@ -95,6 +95,8 @@ go build -o dockergen ./cmd/dockergen
 go test ./...
 ```
 
+The CI pipeline includes end-to-end tests that verify BuildKit cache mounts are working correctly. If the cache mounts disappear from the Dockerfile or stop working, the CI pipeline will fail, protecting the 5-10× rebuild speed-up for Spring applications.
+
 ## License
 
 MIT 
