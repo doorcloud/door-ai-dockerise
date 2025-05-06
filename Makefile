@@ -1,4 +1,4 @@
-.PHONY: build test lint clean tidy test-e2e
+.PHONY: build test lint clean tidy test-e2e ci-spring-e2e
 
 # Build targets
 build:
@@ -10,6 +10,9 @@ test:
 
 test-e2e:
 	DG_E2E=1 OPENAI_MOCK=1 go test -v -tags=integration ./test/e2e/...
+
+ci-spring-e2e:
+	OPENAI_MOCK=1 pytest -q tests/spring_examples
 
 # Code quality
 lint:
