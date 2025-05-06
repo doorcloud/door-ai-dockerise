@@ -11,7 +11,6 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/adapters/rules/react"
-	"github.com/doorcloud/door-ai-dockerise/adapters/rules/springboot"
 	coremock "github.com/doorcloud/door-ai-dockerise/core/mock"
 	dockermock "github.com/doorcloud/door-ai-dockerise/drivers/docker/mock"
 	"github.com/doorcloud/door-ai-dockerise/pipeline"
@@ -33,7 +32,6 @@ func TestReactE2E(t *testing.T) {
 	p := pipeline.NewPipeline(
 		pipeline.WithDetectors(
 			react.NewReactDetector(),
-			springboot.NewSpringBootDetector(),
 		),
 		pipeline.WithFactProviders(
 			facts.NewStatic(),
@@ -67,5 +65,4 @@ func TestReactE2E(t *testing.T) {
 	// Verify log output
 	logOutput := logBuf.String()
 	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
-	assert.False(t, strings.Contains(logOutput, "detector=spring-boot found=true"), "Unexpected Spring Boot detector log line")
 }

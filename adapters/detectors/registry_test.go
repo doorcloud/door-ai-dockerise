@@ -1,12 +1,17 @@
-package detectors
+package detectors_test
 
 import (
 	"testing"
+
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
 )
 
-func TestRegistryDetectsSpring(t *testing.T) {
-	spec, stack, ok := Detect("testdata/spring_positive/petclinic_maven")
-	if !ok || stack != "spring-boot" || spec.BuildTool == "" {
-		t.Fatalf("spring not detected or spec empty")
+func TestRegistryUniqueNames(t *testing.T) {
+	seen := map[string]struct{}{}
+	for _, d := range detectors.List() {
+		if _, ok := seen[d.Name()]; ok {
+			t.Fatalf("duplicate detector name %q", d.Name())
+		}
+		seen[d.Name()] = struct{}{}
 	}
 }

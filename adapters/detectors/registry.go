@@ -22,6 +22,9 @@ func Register(d core.Detector) { reg = append(reg, d) }
 // Registry returns the list of registered detectors.
 func Registry() []core.Detector { return reg }
 
+// List returns all registered detectors.
+func List() []core.Detector { return reg }
+
 // Detect runs detectors in registration order and returns the first match.
 // The returned spec may already have BuildTool etc. filled by the stack extractor.
 func Detect(root string) (core.Spec, string, bool) {

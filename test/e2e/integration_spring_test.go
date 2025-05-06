@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/spring"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
@@ -27,7 +27,7 @@ func TestIntegration_Spring(t *testing.T) {
 	// Create pipeline with mock components
 	p := pipeline.NewPipeline(
 		pipeline.WithDetectors(
-			springboot.NewSpringBootDetector(),
+			spring.NewSpringBootDetectorV3(),
 		),
 		pipeline.WithFactProviders(
 			facts.NewStatic(),

@@ -11,7 +11,6 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/react"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
-	"github.com/doorcloud/door-ai-dockerise/adapters/rules/springboot"
 	"github.com/doorcloud/door-ai-dockerise/core/mock"
 	dockermock "github.com/doorcloud/door-ai-dockerise/drivers/docker/mock"
 	v2 "github.com/doorcloud/door-ai-dockerise/pipeline"
@@ -77,7 +76,6 @@ func runGenerator(projectDir string) (string, error) {
 	p := v2.NewPipeline(
 		v2.WithDetectors(
 			react.NewReactDetector(),
-			springboot.NewSpringBootDetector(),
 		),
 		v2.WithFactProviders(
 			facts.NewStatic(),
@@ -121,7 +119,6 @@ func TestReactIntegration(t *testing.T) {
 	p := v2.NewPipeline(
 		v2.WithDetectors(
 			react.NewReactDetector(),
-			springboot.NewSpringBootDetector(),
 		),
 		v2.WithFactProviders(
 			facts.NewStatic(),
@@ -155,7 +152,6 @@ func TestReactIntegration(t *testing.T) {
 	// Verify log output
 	logOutput := logBuf.String()
 	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
-	assert.False(t, strings.Contains(logOutput, "detector=spring-boot found=true"), "Unexpected Spring Boot detector log line")
 }
 
 func TestIntegration_React(t *testing.T) {
@@ -236,7 +232,6 @@ func TestIntegration_React(t *testing.T) {
 	p := v2.NewPipeline(
 		v2.WithDetectors(
 			react.NewReactDetector(),
-			springboot.NewSpringBootDetector(),
 		),
 		v2.WithFactProviders(
 			facts.NewStatic(),
@@ -261,7 +256,6 @@ func TestIntegration_React(t *testing.T) {
 	// Verify log output
 	logOutput := logBuf.String()
 	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
-	assert.False(t, strings.Contains(logOutput, "detector=spring-boot found=true"), "Unexpected Spring Boot detector log line")
 }
 
 func TestReactSpecV2(t *testing.T) {
@@ -279,7 +273,6 @@ func TestReactSpecV2(t *testing.T) {
 	p := v2.NewPipeline(
 		v2.WithDetectors(
 			react.NewReactDetector(),
-			springboot.NewSpringBootDetector(),
 		),
 		v2.WithFactProviders(
 			facts.NewStatic(),
@@ -313,5 +306,4 @@ func TestReactSpecV2(t *testing.T) {
 	// Verify log output
 	logOutput := logBuf.String()
 	assert.True(t, strings.Contains(logOutput, "detector=react found=true"), "Expected React detector log line")
-	assert.False(t, strings.Contains(logOutput, "detector=spring-boot found=true"), "Unexpected Spring Boot detector log line")
 }

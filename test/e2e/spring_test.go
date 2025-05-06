@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/doorcloud/door-ai-dockerise/adapters/detectors/spring"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generator"
-	"github.com/doorcloud/door-ai-dockerise/adapters/rules/springboot"
 	"github.com/doorcloud/door-ai-dockerise/adapters/verifiers/docker"
 	"github.com/doorcloud/door-ai-dockerise/core"
 	"github.com/stretchr/testify/assert"
@@ -62,7 +62,7 @@ func TestE2E_SpringMatrix(t *testing.T) {
 			require.NoError(t, err)
 
 			// Create detector
-			detector := springboot.NewSpringBootDetector()
+			detector := spring.NewSpringBootDetectorV3()
 
 			// Create generator
 			gen := generator.NewTemplateGenerator()
