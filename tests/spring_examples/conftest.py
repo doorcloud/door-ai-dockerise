@@ -1,18 +1,17 @@
-import os, pathlib, subprocess, pytest, shutil
+import os, pathlib, pytest, subprocess, shutil
 
-EXAMPLES = pathlib.Path(__file__).parents[2] / "spring-boot-examples"
+ROOT = pathlib.Path(__file__).parents[2]
+EXAMPLES = ROOT / "spring-boot-examples"
 
-def _is_war(pom: pathlib.Path) -> bool:
-    try:
-        return "<packaging>war" in pom.read_text()
-    except FileNotFoundError:
-        return False
+def _is_war(dir_: pathlib.Path) -> bool:
+    pom = dir_ / "pom.xml"
+    return pom.exists() and "<packaging>war" in pom.read_text()
 
 def spring_dirs():
     for d in EXAMPLES.glob("spring-boot-*"):
-        if d.is_dir() and not _is_war(d / "pom.xml"):
+        if d.is_dir() and not _is_war(d):
             yield d
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def _set_mock():
-    os.environ.setdefault("OPENAI_MOCK", "1") 
+    os.environ.setdefault("OPENAI_MOCK", "1")   # offline, fast 
