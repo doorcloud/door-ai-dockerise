@@ -155,7 +155,8 @@ func (d *SpringBootDetector) isSpringBootMavenProject(project *MavenProject) boo
 	// Check dependencies
 	for _, dep := range project.Dependencies {
 		if dep.GroupId == "org.springframework.boot" &&
-			strings.Contains(dep.ArtifactId, "spring-boot") {
+			(strings.Contains(dep.ArtifactId, "spring-boot-starter") ||
+				strings.Contains(dep.ArtifactId, "spring-boot-devtools")) {
 			return true
 		}
 	}
