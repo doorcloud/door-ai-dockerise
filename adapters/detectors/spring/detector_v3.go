@@ -284,10 +284,8 @@ func (d *SpringBootDetectorV3) isSpringBootMavenModule(fsys fs.FS, pomPath strin
 	}
 
 	// Check for Spring Boot starter dependencies
-	hasStarter := strings.Contains(contentStr, "<artifactId>spring-boot-starter-web</artifactId>") ||
-		strings.Contains(contentStr, "<artifactId>spring-boot-starter-actuator</artifactId>") ||
-		strings.Contains(contentStr, "<artifactId>spring-boot-starter-webflux</artifactId>") ||
-		strings.Contains(contentStr, "<artifactId>spring-boot-starter-data-jpa</artifactId>")
+	hasStarter := strings.Contains(contentStr, "<artifactId>spring-boot-starter") ||
+		strings.Contains(contentStr, "<artifactId>spring-boot-devtools")
 	if hasStarter {
 		signals += 2
 	}

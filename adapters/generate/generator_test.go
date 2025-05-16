@@ -42,7 +42,7 @@ func TestGenerateDockerfile(t *testing.T) {
 			mockLLM := mock.NewMockClient()
 			generator := NewLLM(mockLLM)
 
-			got, err := generator.Generate(context.Background(), tt.facts)
+			got, err := generator.GenerateDockerfile(context.Background(), tt.facts)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Generate() error = %v, wantErr %v", err, tt.wantErr)
 				return

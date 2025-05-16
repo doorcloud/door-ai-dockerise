@@ -10,6 +10,16 @@ RULES
 5. Add OCI labels:  
    `org.opencontainers.image.source` and `.version` = `spring_boot_version`  
 6. Emit **only** the Dockerfile, no commentary.
+7. **Builder base image**  
+   If `build_cmd` begins with `"mvn "` (i.e. no wrapper script),  
+   use  
+   ```
+   FROM maven:3.9-eclipse-temurin<java_version> AS build
+   ```  
+   Otherwise (wrapper present) keep  
+   ```
+   FROM eclipse-temurin:<java_version>-jdk AS build
+   ```
 
 DEFAULTS
 java_version: 17

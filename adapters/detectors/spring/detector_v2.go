@@ -227,15 +227,14 @@ func (d *SpringBootDetectorV2) isSpringBootMavenModule(fsys fs.FS, pomPath strin
 		strings.Contains(contentStr, "<artifactId>spring-boot-maven-plugin</artifactId>")
 
 	// Must have Spring Boot starter dependencies
-	hasStarter := strings.Contains(contentStr, "<artifactId>spring-boot-starter-web</artifactId>") ||
-		strings.Contains(contentStr, "<artifactId>spring-boot-starter-actuator</artifactId>") ||
-		strings.Contains(contentStr, "<artifactId>spring-boot-starter-webflux</artifactId>") ||
-		strings.Contains(contentStr, "<artifactId>spring-boot-starter-data-jpa</artifactId>")
+	hasStarter := strings.Contains(contentStr, "<artifactId>spring-boot-starter") ||
+		strings.Contains(contentStr, "<artifactId>spring-boot-devtools")
 
 	// For modules, we need either:
-	// 1. Spring Boot parent + starter dependencies, or
-	// 2. Spring Boot plugin + starter dependencies
-	return (hasParent || hasPlugin) && hasStarter
+	// 1. Spring Boot parent, or
+	// 2. Spring Boot plugin, or
+	// 3. Spring Boot starter dependencies
+	return hasParent || hasPlugin || hasStarter
 }
 
 // isSpringBootGradleModule checks if the build.gradle file is a Spring Boot module

@@ -17,7 +17,7 @@ import (
 	"github.com/doorcloud/door-ai-dockerise/core"
 	dockerdriver "github.com/doorcloud/door-ai-dockerise/drivers/docker"
 	"github.com/doorcloud/door-ai-dockerise/internal/config"
-	"github.com/doorcloud/door-ai-dockerise/providers/llm/ollama"
+	"github.com/doorcloud/door-ai-dockerise/providers/llm/mock"
 )
 
 // Option is a function that configures a Pipeline
@@ -142,7 +142,7 @@ func (p *Pipeline) Run(ctx context.Context, projectDir string, logs io.Writer) e
 	}
 
 	// Use the prompt in the chat completion
-	llm := ollama.New()
+	llm := mock.NewMockClient()
 	messages := []core.Message{
 		{
 			Role:    "user",

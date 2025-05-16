@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/doorcloud/door-ai-dockerise/adapters/detectors"
+	_ "github.com/doorcloud/door-ai-dockerise/adapters/detectors/spring"
 	_ "github.com/doorcloud/door-ai-dockerise/adapters/detectors/springboot"
 	"github.com/doorcloud/door-ai-dockerise/adapters/facts"
 	"github.com/doorcloud/door-ai-dockerise/adapters/generate"
