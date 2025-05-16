@@ -1,7 +1,0 @@
-[submodule "testdata/e2e/spring_positive/maven_multimodule"]
-	path = testdata/e2e/spring_positive/maven_multimodule
-	url = https://github.com/spring-projects/spring-boot.git
-[submodule "spring-boot-examples"]
-	path = spring-boot-examples
-	url = https://github.com/in28minutes/spring-boot-examples
-	branch = main

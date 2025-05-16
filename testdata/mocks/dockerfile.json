@@ -1,3 +1,0 @@
-{
-  "8b2c9d4e1f3a5c7b6d9e0f1a2b4c5d6e7f8a9b0c1": "FROM eclipse-temurin:17-jdk\n\nWORKDIR /app\n\nCOPY . .\n\nRUN ./mvnw -q package\n\nEXPOSE 8080\n\nCMD [\"java\", \"-jar\", \"target/*.jar\"]"
-} 
