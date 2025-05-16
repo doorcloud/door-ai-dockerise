@@ -1,155 +1,46 @@
-# Dockerfile Generator
+# dockergen (Spring-only)
 
-[![Go Tests](https://github.com/doorcloud/door-ai-dockerise/actions/workflows/test.yml/badge.svg)](https://github.com/doorcloud/door-ai-dockerise/actions/workflows/test.yml)
-[![Go Vet](https://github.com/doorcloud/door-ai-dockerise/actions/workflows/vet.yml/badge.svg)](https://github.com/doorcloud/door-ai-dockerise/actions/workflows/vet.yml)
-[![Latest Release](https://img.shields.io/github/v/release/doorcloud/door-ai-dockerise)](https://github.com/doorcloud/door-ai-dockerise/releases/latest)
+A **tiny CLI** that:
+1. Detects if the current repo is a Spring Boot project.
+2. Asks OpenAI to generate an optimized Dockerfile.
+3. Writes `Dockerfile` and runs `docker build`.
 
-A tool to automatically generate Dockerfiles for your projects using AI.
+---
 
-## Quick Start
-
-Install the latest version:
-```bash
-go install github.com/doorcloud/door-ai-dockerise/cmd/dockergen@latest
-```
-
-Generate a Dockerfile for your project:
-```bash
-# Navigate to your project directory
-cd your-project
-
-# Generate a Dockerfile
-dockergen
-
-# See all available options
-dockergen -h
-```
-
-## Installation
+## Requirements
+- **Go 1.22+** (only for building the CLI)
+- **Docker** daemon running
+- `OPENAI_API_KEY` exported in your shell
 
 ```bash
-go install github.com/doorcloud/door-ai-dockerise/cmd/dockergen@latest
+go build -o dockergen ./cmd/...
 ```
 
-## Usage
+---
 
-### Basic Usage
-
-Generate a Dockerfile for a project in the current directory:
+## Quick start
 
 ```bash
-dockergen
+# inside any Spring Boot repo
+export OPENAI_API_KEY=sk-...
+dockergen --tag myapp:latest  # creates Dockerfile + builds image
+docker run -p 8080:8080 myapp:latest
 ```
 
-### Advanced Usage
+### Flags
 
-Generate a Dockerfile for a specific project directory:
+| Flag   | Default            | Description                      |
+|--------|-------------------|----------------------------------|
+| `--repo` | `.`              | Path to the source repository    |
+| `--tag`  | `spring-app:latest` | Docker image tag               |
+| `--retry` | `0`              | Times to re-ask the LLM on failure |
 
-```bash
-dockergen --path ./repo
-```
+---
 
-Generate a Dockerfile using a specific LLM provider:
+## How it works (3 steps)
 
-```bash
-# Using Ollama
-dockergen --path ./repo --llm ollama
+1. **Detect**: looks for `pom.xml` or `build.gradle` to confirm Spring.
+2. **Prompt**: fills a single template and calls ChatGPT (`gpt-4o-mini`).
+3. **Build**: saves the Dockerfile and runs `docker build`.
 
-# Using OpenAI
-dockergen --spec stack.yaml --llm openai --verbose
-```
-
-### Options
-
-- `--path`: Path to the project directory (default: ".")
-- `--spec`: Path to stack specification file (yaml/json)
-- `--llm`: LLM provider to use (openai|ollama) (default: "openai")
-- `--verbose`: Enable verbose logging
-- `--debug`: Enable debug logging
-
-## Configuration
-
-### OpenAI
-
-To use OpenAI, set the `OPENAI_API_KEY` environment variable:
-
-```bash
-export OPENAI_API_KEY=your-api-key
-```
-
-### Ollama
-
-Ollama should be running locally on the default port (11434).
-
-## Development
-
-### Building
-
-```bash
-go build -o dockergen ./cmd/dockergen
-```
-
-### Testing
-
-```bash
-go test ./...
-```
-
-## License
-
-MIT 
-
-## Architecture
-
-### Flow Diagram
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant CLI
-    participant Orchestrator
-    participant Detector
-    participant FactProvider
-    participant Generator
-    participant Verifier
-
-    User->>CLI: Run dockergen
-    CLI->>Orchestrator: Run pipeline
-    Orchestrator->>Detector: Detect stack
-    Detector-->>Orchestrator: StackInfo
-    Orchestrator->>FactProvider: Gather facts
-    FactProvider-->>Orchestrator: Facts
-    Orchestrator->>Generator: Generate Dockerfile
-    Generator-->>Orchestrator: Dockerfile
-    loop Verification
-        Orchestrator->>Verifier: Verify Dockerfile
-        alt Verification fails
-            Verifier-->>Orchestrator: Error
-            Orchestrator->>Generator: Fix Dockerfile
-            Generator-->>Orchestrator: Fixed Dockerfile
-        else Verification succeeds
-            Verifier-->>Orchestrator: Success
-        end
-    end
-    Orchestrator-->>CLI: Dockerfile
-    CLI-->>User: Success
-```
-
-### Retry Flow
-
-The orchestrator implements a retry mechanism for Dockerfile verification without re-detecting the stack. This flow is used when:
-
-1. The initial Dockerfile generation fails verification
-2. The stack information is already known (either from detection or spec)
-
-The retry flow follows these steps:
-
-1. Generate initial Dockerfile
-2. Verify the Dockerfile
-3. If verification fails:
-   - Use the generator's Fix method to improve the Dockerfile
-   - Retry verification with the fixed Dockerfile
-   - Repeat up to the configured number of attempts
-4. If all attempts fail, return the last error
-
-The retry mechanism is configurable through the `attempts` parameter in the Orchestrator options. 
+That's it—no scans, no extra plugins, just fast Dockerization for Spring Boot. 
